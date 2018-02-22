@@ -1,4 +1,5 @@
 #pragma once
+#include <inttypes.h>
 typedef struct{
   int num_bits;
   char* entries;

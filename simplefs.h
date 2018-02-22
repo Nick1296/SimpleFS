@@ -44,7 +44,7 @@ typedef struct {
 
 
 typedef struct{
-  Index[BLOCK_SIZE/sizeof(Index)]
+  Index indexes[BLOCK_SIZE/sizeof(Index)];
 } IndexBlock;
 
 // this is one of the next physical blocks of a file
