@@ -16,6 +16,7 @@ typedef struct {
   DiskHeader* header; // mmapped
   BitMap* bmap;  // mmapped (bitmap)
   int fd; // for us
+  // Manca il puntatore di dove iniziano i blocchi per scrivere i dati
 } DiskDriver;
 
 /**
@@ -32,7 +33,7 @@ typedef struct {
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks);
 
 // reads the block in position block_num
-// returns -1 if the block is free accrding to the bitmap
+// returns -1 if the block is free according to the bitmap
 // 0 otherwise
 int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num);
 
@@ -44,7 +45,7 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num);
 // returns -1 if operation not possible
 int DiskDriver_freeBlock(DiskDriver* disk, int block_num);
 
-// returns the first free blockin the disk from position (checking the bitmap)
+// returns the first free block in the disk from position (checking the bitmap)
 int DiskDriver_getFreeBlock(DiskDriver* disk, int start);
 
 // writes the data (flushing the mmaps)

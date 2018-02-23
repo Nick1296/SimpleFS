@@ -40,13 +40,16 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   CHECK_ERR(res==-1,"can't write into file");
 
   //mmap the file
-  void* map=mmap(0,num_blocks*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE,fd,0);
+  void* map=mmap(0,num_blocks*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
   CHECK_ERR(map==MAP_FAILED,"error mapping the file");
 
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+  
+  printf("Exists: %d\n", exists);
+  
   //initializing the file if it doesn't exist
   if(!exists){
     //creating and initializing the disk header
@@ -80,4 +83,87 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   disk->header=map;
   disk->bmap=map+sizeof(DiskHeader);
   disk->fd=fd;
+  // Manca il puntatore di dove iniziano i blocchi per scrivere i dati
+}
+
+int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
+  // Check if the parameters passed are valid
+  if(disk==NULL) return -1;
+  if(dest==NULL) return -1;
+  if(block_num<0) return -1;
+  
+  memcpy(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE);
+  
+  // Check if the block is copied validly
+  if(memcmp(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
+    
+  return 0;
+}
+
+int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
+  // Check if the parameters passed are valid
+  if(disk==NULL) return -1;
+  if(src==NULL) return -1;
+  if(block_num<0) return -1;
+
+  // Operation on bitmap 
+  // TODO
+  // index obtained from BitMap_get
+  // BitMap_set
+  
+  memcpy(disk->header+sizeof(DiskHeader)+block_num, src, BLOCK_SIZE);
+  
+  // Check if the block is copied validly
+  if(memcmp(src, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
+    
+  return 0;
+
+}
+
+int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
+  // Check if the parameters passed are valid
+  if(disk==NULL) return -1;
+  if(block_num<0) return -1;
+     
+  // Invalidate the bit corresponds to this block on the bitmap
+  // TODO
+  
+  // Free block
+  DiskHeader *header = disk->header;
+  header->num_blocks--;
+  header->free_blocks++;
+  
+  return 0;
+}
+
+// A cosa serve il parameteo start???
+int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
+  // Check if the parameter passed is valid
+  if(disk==NULL) return -1;
+  
+  // Iterations to obtain a true free block in disk
+  int ok = 0, new_block;
+  while(!ok){
+    new_block = disk->header->first_free_block;
+    
+    // Check if new_block is real free (check bitmap)
+    // TODO
+  
+    // If new_block is real free then ok=1
+  }
+  
+  return new_block;
+}
+
+int DiskDriver_flush(DiskDriver* disk){
+  // Check if the parameter passed is valid
+  if(disk==NULL) return -1;
+  
+  int res = msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
+  /*if(res==-1 && errno==EBUSY){ printf("EBUSY\n"); return -1; }
+  if(res==-1 && errno==EINVAL){ printf("EINVAL\n"); return -1; }
+  if(res==-1 && errno==ENOMEM){ printf("ENOMEM\n"); return -1; }*/
+  if(res==-1) return -1;
+  
+  return 0;
 }
