@@ -44,26 +44,46 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   CHECK_ERR(map==MAP_FAILED,"error mapping the file");
 
   //calculating the bitmap size (rounded up)
-  int bitmap_size=(num_blocks+7)/8;
+  int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
-  int occupation=(sizeof(DiskHeader)+BLOCK_SIZE-1)/BLOCK_SIZE-(bitmap_size*sizeof(char)+BLOCK_SIZE)/BLOCK_SIZE;
+  int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
   //initializing the file if it doesn't exist
   if(!exists){
     //creating and initializing the disk header
     DiskHeader d;
     d.num_blocks=num_blocks;
-    d.bitmap_blocks=bitmap_size;
-    d.bitmap_entries=num_blocks-occupation;
+    d.bitmap_blocks=(bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+    d.bitmap_entries=bitmap_blocks;
     d.free_blocks=num_blocks-occupation;
     d.first_free_block=occupation+1;
     //writing the disk header to the mmapped file
     memcpy(map,&d,sizeof(DiskHeader));
 
     //creating the bitmap
-    memset(map+sizeof(DiskHeader),0,bitmap_size*sizeof(char));
+    uint8_t bitmap[bitmap_blocks];
+    // we use a mask to sign the occupied blocks
+    uint8_t mask;
+    int j,i,write=occupation,written=0;
+    for(i=0;i<bitmap_blocks;i++){
+      mask=0;
+      printf("block: %d,bit to write: %d,bit written: %d\n",i,write,written);
+      for(j=0; j<8 && written<write; j++){
+        printf("mask: %d,bit written: %d\n",mask,written);
+        mask=mask>>1;
+        mask+=128;
+        written++;
+      }
+      bitmap[i]=mask;
+      printf("result: %d\n",bitmap[i]);
+    }
+    BitMap b;
+    b.entries=bitmap;
+    b.num_bits=num_blocks;
+    memcpy(map+sizeof(DiskHeader),&b,sizeof(BitMap));
+    memcpy(map+sizeof(DiskHeader)+sizeof(BitMap),bitmap,bitmap_blocks*sizeof(uint8_t));
   }
   //populating the disk driver
   disk->header=map;
-  disk->bitmap_data=map+sizeof(DiskHeader);
+  disk->bmap=map+sizeof(DiskHeader);
   disk->fd=fd;
 }

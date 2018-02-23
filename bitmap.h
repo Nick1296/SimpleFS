@@ -2,12 +2,12 @@
 #include <inttypes.h>
 typedef struct{
   int num_bits;
-  char* entries;
+  uint8_t* entries;
 }  BitMap;
 
 typedef struct {
   int entry_num;
-  char bit_num;
+  uint8_t bit_num;
 } BitMapEntryKey;
 
 // converts a block index to an index in the array,
