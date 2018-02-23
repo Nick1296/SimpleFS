@@ -28,9 +28,8 @@ int main(int agc, char** argv) {
   for(i=0;i<(disk.header->num_blocks+7)/8;i++){
     mask=128;
     printf("block %d:\n",i);
-    printf("value:%d\n",disk.bmap->entries[i]);
     for(j=0;j<8 && printed<print;j++){
-      printf("mask:%d, res:%c\n",mask,((mask & disk.bmap->entries[i])? '1' :'0'));
+      printf("%c",((mask & disk.bmap->entries[i])? '1' :'0'));
       mask=mask>>1;
       printed++;
     }
