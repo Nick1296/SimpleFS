@@ -1,12 +1,12 @@
 CCOPTS= -Wall -g -std=gnu99 -Wstrict-prototypes
-LIBS= 
+LIBS=
 CC=gcc
 AR=ar
 
 
-BINS= simplefs_test
+BINS= simplefs_test.out
 
-OBJS = #add here your object files
+OBJS = bitmap.c disk_driver.c
 
 HEADERS=bitmap.h\
 	disk_driver.h\
@@ -18,10 +18,13 @@ HEADERS=bitmap.h\
 .phony: clean all
 
 
-all:	$(BINS) 
+all:	$(BINS)
 
-so_game: simplefs_test.c $(OBJS) 
+simplefs_test.out: simplefs_test.c $(OBJS)
 	$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 
 clean:
 	rm -rf *.o *~  $(BINS)
+
+test:
+	./simplefs_test.out

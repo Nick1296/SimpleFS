@@ -60,6 +60,7 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
     //creating and initializing the bitmap
     BitMap *b=map+sizeof(DiskHeader);
     b->entries=(uint8_t*)b+sizeof(BitMap);
+    b->num_blocks=bitmap_blocks;
     b->num_bits=num_blocks;
     uint8_t *bitmap=b->entries;
     // we use a mask to sign the occupied blocks

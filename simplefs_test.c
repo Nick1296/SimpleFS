@@ -1,38 +1,90 @@
-#include "simplefs.h"
 #include <stdio.h>
 #include <unistd.h>
+#include "simplefs.h"
 
-int main(int agc, char** argv) {
-  int i,j,printed,print;
+void bitmap_info(DiskDriver *disk){
+  int i,j,printed=0,print;
   uint8_t mask;
-  printf("FirstBlock size %ld\n", sizeof(FirstFileBlock));
-  printf("DataBlock size %ld\n", sizeof(FileBlock));
-  printf("FirstDirectoryBlock size %ld\n", sizeof(FirstDirectoryBlock));
-  printf("DirectoryBlock size %ld\n", sizeof(DirectoryBlock));
-
-  printf("\t\t\t Testing disk driver module:\n");
-  printf("\t testing disk_init\n");
-  //let's eliminate the previously created file if any
-  unlink("disk");
-  DiskDriver disk;
-  DiskDriver_init(&disk,"disk",10);
-  printf("associated file descriptor: %d\n",disk.fd);
-  printf("\t DiskHeader info:\n");
-  printf("num blocks: %d\n",disk.header->num_blocks );
-  printf("num bitmap blocks: %d\n",disk.header->bitmap_blocks );
-  printf("bitmap entries: %d\n",disk.header->bitmap_entries );
-  printf("num free blocks: %d\n",disk.header->free_blocks );
-  printf("first free block: %d\n",disk.header->first_free_block );
   printf("\t Bitmap info\n");
-  print=disk.header->num_blocks;
-  for(i=0;i<(disk.header->num_blocks+7)/8;i++){
+  print=disk->header->num_blocks;
+  for(i=0;i<(disk->header->num_blocks+7)/8;i++){
     mask=128;
     printf("block %d:\n",i);
     for(j=0;j<8 && printed<print;j++){
-      printf("%c",((mask & disk.bmap->entries[i])? '1' :'0'));
+      printf("%c",((mask & disk->bmap->entries[i])? '1' :'0'));
       mask=mask>>1;
       printed++;
     }
     printf("\n");
   }
+}
+
+void driver_test(DiskDriver *disk){
+  printf("\t\t\t Testing disk driver module:\n");
+
+  printf("\t\t Testing disk_init:\n");
+  //let's eliminate the previously created file if any
+  unlink("disk");
+  DiskDriver_init(disk,"disk",10);
+  printf("associated file descriptor: %d\n",disk->fd);
+
+  printf("\t DiskHeader info:\n");
+  printf("num blocks: %d\n",disk->header->num_blocks );
+  printf("num bitmap blocks: %d\n",disk->header->bitmap_blocks );
+  printf("bitmap entries: %d\n",disk->header->bitmap_entries );
+  printf("num free blocks: %d\n",disk->header->free_blocks );
+  printf("first free block: %d\n",disk->header->first_free_block );
+
+  bitmap_info(disk);
+}
+
+void bitmap_test(DiskDriver *disk){
+  printf("\t\t\t Testing bitmap module:\n");
+
+  printf("\t\t Testing BitMap_blockToIndex:\n");
+  BitMapEntryKey t1,t2;
+  int b1=4,b2=11;
+  t1=BitMap_blockToIndex(b1);
+  printf("block: %d, entry_num: %d, bit_num: %d\n",b1,t1.entry_num,t1.bit_num);
+  t2=BitMap_blockToIndex(b2);
+  printf("block: %d, entry_num: %d, bit_num: %d\n",b2,t2.entry_num,t2.bit_num);
+
+  printf("\t\t Testing BitMap_indexToBlock\n");
+  b1=BitMap_indexToBlock(t1.entry_num,t1.bit_num);
+  printf("entry:%d, bit_num:%d, block: %d\n",t1.entry_num,t1.bit_num,b1);
+  b2=BitMap_indexToBlock(t2.entry_num,t2.bit_num);
+  printf("entry:%d, bit_num:%d, block: %d\n",t2.entry_num,t2.bit_num,b2);
+
+  printf("\t\t Testing BitMap_get\n");
+  b1=BitMap_get(disk->bmap,0,0);
+  printf("status:%d, start: %d, bit_num:%d\n",0,0,b1);
+  b2=BitMap_get(disk->bmap,0,1);
+  printf("start:%d, status:%d, bit_num:%d\n",0,1,b2);
+
+  printf("\t\t Testing BitMap_set\n");
+  BitMap_set(disk->bmap,10,1);
+  printf("status:%d, pos: %d\n",1,10);
+  BitMap_set(disk->bmap,5,1);
+  printf("status:%d, pos:%d\n",1,5);
+  bitmap_info(disk);
+  BitMap_set(disk->bmap,10,0);
+  printf("status:%d, pos: %d\n",0,10);
+  BitMap_set(disk->bmap,5,0);
+  printf("status:%d, pos:%d\n",0,5);
+
+  bitmap_info(disk);
+}
+
+int main(int agc, char** argv) {
+  printf("FirstBlock size %ld\n", sizeof(FirstFileBlock));
+  printf("DataBlock size %ld\n", sizeof(FileBlock));
+  printf("FirstDirectoryBlock size %ld\n", sizeof(FirstDirectoryBlock));
+  printf("DirectoryBlock size %ld\n", sizeof(DirectoryBlock));
+
+
+  DiskDriver disk;
+  driver_test(&disk);
+
+  bitmap_test(&disk);
+
 }

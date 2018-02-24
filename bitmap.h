@@ -2,6 +2,7 @@
 #include <inttypes.h>
 typedef struct{
   int num_bits;
+  int num_blocks;
   uint8_t* entries;
 }  BitMap;
 
