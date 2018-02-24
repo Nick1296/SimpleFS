@@ -17,6 +17,7 @@ void bitmap_info(DiskDriver *disk){
     }
     printf("\n");
   }
+
 }
 
 void driver_test(DiskDriver *disk){
@@ -36,6 +37,19 @@ void driver_test(DiskDriver *disk){
   printf("first free block: %d\n",disk->header->first_free_block );
 
   bitmap_info(disk);
+
+  printf("\t testing disk_write\n");
+  char *v = "Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento. hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvsl Test";
+  int result = DiskDriver_writeBlock(&disk, v, 0);
+  printf("disk_write result: %d\n", result);
+  printf("\t testing disk_read\n");
+  char data[512];
+  result = DiskDriver_readBlock(&disk, data, 0);
+  printf("disk_read result: %d\n", result);
+  printf("Data readed->%s<-\nend\n\n",data);
+  printf("\t testing disk_flush\n");
+  result = DiskDriver_flush(&disk);
+  printf("flush result: %d\n", result);
 }
 
 void bitmap_test(DiskDriver *disk){

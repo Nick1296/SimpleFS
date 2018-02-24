@@ -8,9 +8,9 @@ BINS= simplefs_test.out
 
 OBJS = bitmap.c disk_driver.c
 
-HEADERS=bitmap.h\
-	disk_driver.h\
-	simplefs.h
+HEADERS=simplefs.h\
+        disk_driver.h\
+        bitmap.h\
 
 %.o:	%.c $(HEADERS)
 	$(CC) $(CCOPTS) -c -o $@  $<
