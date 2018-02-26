@@ -14,6 +14,9 @@
                               _exit(EXIT_FAILURE);             \
                              }
 
+#define FAILED -1
+#define SUCCESS 0
+                             
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   int res,exists=1,fd; //1= file already exists 0=file doesn't exists yet
   //checking if the file exists
@@ -87,84 +90,106 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   // Manca il puntatore di dove iniziano i blocchi per scrivere i dati
 }
 
+// Reads the block in position block_num
+// returns -1 if the block is free according to the bitmap
+// 0 otherwise
 int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
   // Check if the parameters passed are valid
-  if(disk==NULL) return -1;
-  if(dest==NULL) return -1;
-  if(block_num<0) return -1;
+  if(disk==NULL) return FAILED;
+  if(dest==NULL) return FAILED;
+  if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
   
+  // Copy the contents of designated block to the dest
+  // and check if the block has been copied correctly
   memcpy(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE);
-  
-  // Check if the block is copied validly
-  if(memcmp(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
+  if(memcmp(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return FAILED;
     
-  return 0;
+  return SUCCESS;
 }
 
+// writes a block in position block_num, and alters the bitmap accordingly
+// returns -1 if operation not possible
 int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
   // Check if the parameters passed are valid
-  if(disk==NULL) return -1;
-  if(src==NULL) return -1;
-  if(block_num<0) return -1;
+  if(disk==NULL) return FAILED;
+  if(src==NULL) return FAILED;
+  if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
 
-  // Operation on bitmap 
   // TODO
-  // index obtained from BitMap_get
-  // BitMap_set
+  // Possible errors in the code below
   
+  // Check if the block has not been used
+  int retBlock = BitMap_get(disk->bmap, block_num, 0);
+  if(retBlock==FAILED) return FAILED;
+  
+  // Change status and check if the status of the bitmap block has been changed correctly
+  int sucStatus = BitMap_set(disk->bmap, block_num, 1);
+  if(!sucStatus) return FAILED;
+  
+  // Copy the contents of dest to the designated block
+  // and check if the block has been copied correctly
   memcpy(disk->header+sizeof(DiskHeader)+block_num, src, BLOCK_SIZE);
-  
-  // Check if the block is copied validly
-  if(memcmp(src, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
+  if(memcmp(src, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return FAILED;
     
-  return 0;
+  return SUCCESS;
 
 }
 
+// frees a block in position block_num, and alters the bitmap accordingly
+// returns -1 if operation not possible
 int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
   // Check if the parameters passed are valid
-  if(disk==NULL) return -1;
-  if(block_num<0) return -1;
-     
-  // Invalidate the bit corresponds to this block on the bitmap
-  // TODO
+  if(disk==NULL) return FAILED;
+  if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
+  
+  // Change status and check if the status of the bitmap block 
+  // has been changed correctly
+  int sucStatus = BitMap_set(disk->bmap, block_num, 0);
+  if(sucStatus) return FAILED;
   
   // Free block
-  DiskHeader *header = disk->header;
-  header->num_blocks--;
-  header->free_blocks++;
+  disk->header->free_blocks++;
   
-  return 0;
+  return SUCCESS;
 }
 
-// A cosa serve il parameteo start???
+// returns the first free block in the disk from position (checking the bitmap)
 int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   // Check if the parameter passed is valid
-  if(disk==NULL) return -1;
+  if(disk==NULL) return FAILED;
+  if(start<0 || start>disk->header->num_blocks) return FAILED;
   
   // Iterations to obtain a true free block in disk
-  int ok = 0, new_block;
-  while(!ok){
-    new_block = disk->header->first_free_block;
+  int ok = 0, new_block, retBlock;
+  for(new_block = start;
+      new_block != start-1 && !ok;
+      new_block++){
+    // Check if the block has not been used
     
-    // Check if new_block is real free (check bitmap)
     // TODO
-  
-    // If new_block is real free then ok=1
+    // Possible errors in the code below
+    retBlock = BitMap_get(disk->bmap, new_block-1, 0);
+printf("retBlock: %d, new_block: %d\n", retBlock, new_block);
+    if(retBlock == new_block){ ok=1; new_block--;}
+    
+    // If arrive at the end of the blocks then start from 0
+    if(new_block == disk->header->num_blocks) new_block=0;
   }
   
+  //disk->header->first_free_block = new_block+1;
+  disk->header->free_blocks--;
+
   return new_block;
 }
 
+// writes the data (flushing the mmaps)
 int DiskDriver_flush(DiskDriver* disk){
   // Check if the parameter passed is valid
-  if(disk==NULL) return -1;
+  if(disk==NULL) return FAILED;
   
+  // Sync between map and file and check possible error
   int res = msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
-  /*if(res==-1 && errno==EBUSY){ printf("EBUSY\n"); return -1; }
-  if(res==-1 && errno==EINVAL){ printf("EINVAL\n"); return -1; }
-  if(res==-1 && errno==ENOMEM){ printf("ENOMEM\n"); return -1; }*/
-  if(res==-1) return -1;
+  if(res==-1) return FAILED;
   
-  return 0;
+  return SUCCESS;
 }
