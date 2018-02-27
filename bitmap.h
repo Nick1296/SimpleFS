@@ -26,6 +26,7 @@ int BitMap_indexToBlock(int entry, uint8_t bit_num);
 int BitMap_get(BitMap* bmap, int start, int status);
 
 // sets the bit at index pos in bmap to status
+// return status passed on success
 int BitMap_set(BitMap* bmap, int pos, int status);
 
 // return the status of the bit at index pos in bmap
