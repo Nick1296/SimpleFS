@@ -22,11 +22,7 @@ void bitmap_info(DiskDriver *disk){
 }
 
 void driver_test(DiskDriver *disk){
-  printf("\t\t\t Testing disk driver module:\n");
 
-  printf("\t\t Testing disk_init:\n");
-  //let's eliminate the previously created file if any
-  unlink("disk");
   DiskDriver_init(disk,"disk",10);
   printf("associated file descriptor: %d\n",disk->fd);
 
@@ -40,47 +36,47 @@ void driver_test(DiskDriver *disk){
   bitmap_info(disk);
 
   printf("\t testing getFreeBlock\n");
-  
+
   int result, blockToWrite, i;
   for(i=0; i<disk->header->num_blocks; i++){
     // provare le altre funzioni
     blockToWrite = DiskDriver_getFreeBlock(disk, i);
     printf("disk_getFreeBlock result: %d\n", blockToWrite);
-    
+
     printf("\t testing disk_write\n");
     char *v = "<Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento.hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvs Test>";
     result = DiskDriver_writeBlock(disk, v, blockToWrite);
     printf("disk_write result: %d\n", result);
     printf("\t testing disk_read\n");
-    
+
     char data[BLOCK_SIZE];
     result = DiskDriver_readBlock(disk, data, blockToWrite);
     printf("disk_read result: %d\n", result);
     printf("Data readed->%s<-end\n\n",data);
     memset(data, 0, sizeof(data));
   }
-  
+
   printf("\t testing disk_flush\n");
   result = DiskDriver_flush(disk);
   printf("flush result: %d\n", result);
-  
+
   bitmap_info(disk);
-  
+
   printf("\n\n\t testing disk_freeBlock\n");
-  
+
   for(i=disk->header->bitmap_blocks; i<disk->header->num_blocks; i++){
-    
+
     result = DiskDriver_freeBlock(disk, i);
     printf("libero il blocco: %d\nfreeBlock result: %d\n", i, result);
-    
+
   }
 
   bitmap_info(disk);
-    
+
   printf("\t testing disk_flush\n");
   result = DiskDriver_flush(disk);
-  printf("flush result: %d\n", result);  
-  
+  printf("flush result: %d\n", result);
+
   bitmap_info(disk);
 
 }
@@ -136,8 +132,20 @@ int main(int agc, char** argv) {
 
 
   DiskDriver disk;
+  printf("\t\t\t Testing disk driver module:\n");
+
+  printf("\t\t Testing disk_init:\n");
+  //let's eliminate the previously created file if any
+  unlink("disk");
   driver_test(&disk);
-
   bitmap_test(&disk);
-
+  printf("disk drive shutdown...");
+  DiskDriver_shutdown(&disk);
+  printf("done.\n");
+  //now let's retest all the functions whit an existing file
+  driver_test(&disk);
+  bitmap_test(&disk);
+  printf("disk drive shutdown...");
+  DiskDriver_shutdown(&disk);
+  printf("done.\n");
 }

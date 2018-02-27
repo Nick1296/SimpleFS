@@ -44,16 +44,14 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   res=write(fd,"/0",1);
   CHECK_ERR(res==FAILED,"can't write into file");
 
-  //mmap the file
-  void* map=mmap(0,num_blocks*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
-  CHECK_ERR(map==MAP_FAILED,"error mapping the file");
-
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
 
-  printf("Exists: %d\n", exists);
+  //mmap the file
+  void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
+  CHECK_ERR(map==MAP_FAILED,"error mapping the file");
 
   //initializing the file if it doesn't exist
   if(!exists){
@@ -64,8 +62,8 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
     d->bitmap_entries=bitmap_blocks;
     d->free_blocks=num_blocks-occupation;
     d->first_free_block=occupation;
-
-  BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
+    //initializing the bitmap
+    BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
 
   }
   //populating the disk driver
@@ -82,22 +80,22 @@ int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
   if(disk==NULL) return FAILED;
   if(dest==NULL) return FAILED;
   if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
-  
+
   // Set the position to read from
   int res;
   res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
   if(res==-1) return FAILED;
-  
+
   //now we read something so the file will actually have this dimension
   res=read(disk->fd, dest, BLOCK_SIZE);
-  
+
   // If the read was interrupted by an interrupt, then reading again
   while(res==-1 && errno == EINTR){
     res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
     if(res==-1) return FAILED;
     res=read(disk->fd ,dest, BLOCK_SIZE);
   }
-  
+
   if(res!=BLOCK_SIZE) return FAILED;
 
   return SUCCESS;
@@ -123,19 +121,19 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
   int res;
   res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
   if(res==-1) return FAILED;
-  
+
   //now we write something so the file will actually have this dimension
   res=write(disk->fd, src, BLOCK_SIZE);
-  
-  // If the read was interrupted by an interrupt, then reading again
+
+  // If the write was interrupted by an interrupt, then writing again
   while(res==-1 && errno == EINTR){
     res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
     if(res==-1) return FAILED;
     res=write(disk->fd, src, BLOCK_SIZE);
   }
-  
+
   if(res!=BLOCK_SIZE) return FAILED;
-  
+
   return SUCCESS;
 }
 
@@ -153,7 +151,9 @@ int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
 
   // Inc num of free block
   disk->header->free_blocks++;
-
+  if(disk->header->first_free_block==-1){
+    disk->header->first_free_block=block_num;
+  }
   return SUCCESS;
 }
 
@@ -167,12 +167,12 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   int new_block, retStat;
   new_block=disk->header->first_free_block;
   retStat=BitMap_test(disk->bmap, new_block);
-  
+
   // If new_block is already used then find a new_block free
   if(retStat==BLOCK_USED){
     new_block=BitMap_get(disk->bmap, start, BLOCK_FREE);
   }
-  
+
   disk->header->first_free_block=BitMap_get(disk->bmap, new_block+1, BLOCK_FREE);
   // Dec num of free block
   disk->header->free_blocks--;
@@ -188,9 +188,30 @@ int DiskDriver_flush(DiskDriver* disk){
   // Sync between map and file and check possible error
   int res=msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
   if(res==-1) return FAILED;
-  
+
   res=fsync(disk->fd);
   if(res==-1) return FAILED;
-  
+
   return SUCCESS;
+}
+
+void DiskDriver_shutdown(DiskDriver* disk){
+  int res;
+
+  //calculating the bitmap size (rounded up)
+  int bitmap_blocks=(disk->header->num_blocks+7)/8;
+  //rounded up block occupation of DiskHeader and bitmap
+  int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+
+  //flushing changes
+  res=DiskDriver_flush(disk);
+  CHECK_ERR(res==FAILED,"can't sync changes");
+
+  //unmapping the mappend memory
+  res=munmap(disk->header,occupation*BLOCK_SIZE);
+  CHECK_ERR(res==-1,"can't unmap the file");
+
+  //closing the file
+  close(disk->fd);
+  CHECK_ERR(res==-1,"can't close the file");
 }

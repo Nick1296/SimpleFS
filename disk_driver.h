@@ -50,3 +50,6 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start);
 
 // writes the data (flushing the mmaps)
 int DiskDriver_flush(DiskDriver* disk);
+
+//cleaning up, used to close the file and the mapped object
+void DiskDriver_shutdown(DiskDriver* disk);
