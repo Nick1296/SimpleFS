@@ -2,7 +2,6 @@
 
 
 void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks,int occupation){
-
   //initializing the bitmap
   b->entries=(uint8_t*)b+sizeof(BitMap);
   b->num_blocks=bitmap_blocks;
@@ -66,12 +65,12 @@ int BitMap_get(BitMap* bmap, int start, int status){
   if(found){
     return checked;
   }
-  return -1;
+  return FAILED;
 }
 
 // sets the bit at index pos in bmap to status
 int BitMap_set(BitMap* bmap, int pos, int status){
-  int entry=(pos-1)/8, bit=(pos-1)%8;
+  int entry=(pos)/8, bit=(pos)%8;
   uint8_t mask=128;
 
   mask=mask>>bit;
@@ -80,6 +79,7 @@ int BitMap_set(BitMap* bmap, int pos, int status){
   return status;
 }
 
+// return the status of the bit at index pos in bmap
 int BitMap_test(BitMap* bmap, int pos){
   int entry=pos/8;
   int bit=pos%8;

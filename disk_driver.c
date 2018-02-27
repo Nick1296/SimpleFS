@@ -16,31 +16,33 @@
 
 #define FAILED -1
 #define SUCCESS 0
+#define BLOCK_FREE 0
+#define BLOCK_USED 1
 
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   int res,exists=1,fd; //1= file already exists 0=file doesn't exists yet
   //checking if the file exists
   res=access(filename,F_OK);
-  if(res==-1 && errno==ENOENT){
+  if(res==FAILED && errno==ENOENT){
     exists=0;
   }else{
-    CHECK_ERR(res==-1,"Can't test if the file exists");
+    CHECK_ERR(res==FAILED,"Can't test if the file exists");
     exists=1;
   }
 
   // opening the file and creating it if necessary
   fd=open(filename,O_CREAT | O_RDWR,0666);
   //checking if the open was successful
-  CHECK_ERR(fd==-1,"error opening the file");
+  CHECK_ERR(fd==FAILED,"error opening the file");
 
   //now we need to prepare the file to be mmapped because it needs to have the same dimension of the mmapped array
   //to do so we need to write something (/0) to the last byte of the file (num_blocks*BLOCK_SIZE)
   //we have repositioned the file pointer to the last byte
   res=lseek(fd,num_blocks*BLOCK_SIZE-1,SEEK_SET);
-  CHECK_ERR(res==-1,"can't reposition pointer file");
+  CHECK_ERR(res==FAILED,"can't reposition pointer file");
   //now we write something so the file will actually have this dimension
   res=write(fd,"/0",1);
-  CHECK_ERR(res==-1,"can't write into file");
+  CHECK_ERR(res==FAILED,"can't write into file");
 
   //mmap the file
   void* map=mmap(0,num_blocks*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
@@ -61,16 +63,15 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
     d->bitmap_blocks=(bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
     d->bitmap_entries=bitmap_blocks;
     d->free_blocks=num_blocks-occupation;
-    d->first_free_block=occupation+1;
+    d->first_free_block=occupation;
 
   BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
-  
+
   }
   //populating the disk driver
   disk->header=map;
   disk->bmap=map+sizeof(DiskHeader);
   disk->fd=fd;
-  // Manca il puntatore di dove iniziano i blocchi per scrivere i dati
 }
 
 // Reads the block in position block_num
@@ -81,11 +82,23 @@ int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
   if(disk==NULL) return FAILED;
   if(dest==NULL) return FAILED;
   if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
-
-  // Copy the contents of designated block to the dest
-  // and check if the block has been copied correctly
-  memcpy(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE);
-  if(memcmp(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return FAILED;
+  
+  // Set the position to read from
+  int res;
+  res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+  if(res==-1) return FAILED;
+  
+  //now we read something so the file will actually have this dimension
+  res=read(disk->fd, dest, BLOCK_SIZE);
+  
+  // If the read was interrupted by an interrupt, then reading again
+  while(res==-1 && errno == EINTR){
+    res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+    if(res==-1) return FAILED;
+    res=read(disk->fd ,dest, BLOCK_SIZE);
+  }
+  
+  if(res!=BLOCK_SIZE) return FAILED;
 
   return SUCCESS;
 }
@@ -98,24 +111,32 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
   if(src==NULL) return FAILED;
   if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
 
-  // TODO
-  // Possible errors in the code below
-
   // Check if the block has not been used
-  int retBlock = BitMap_get(disk->bmap, block_num, 0);
-  if(retBlock==FAILED) return FAILED;
+  int retBlock=BitMap_test(disk->bmap, block_num);
+  if(retBlock==BLOCK_USED) return FAILED;
 
   // Change status and check if the status of the bitmap block has been changed correctly
-  int sucStatus = BitMap_set(disk->bmap, block_num, 1);
-  if(!sucStatus) return FAILED;
+  int sucStatus=BitMap_set(disk->bmap, block_num, BLOCK_USED);
+  if(sucStatus!=BLOCK_USED) return FAILED;
 
-  // Copy the contents of dest to the designated block
-  // and check if the block has been copied correctly
-  memcpy(disk->header+sizeof(DiskHeader)+block_num, src, BLOCK_SIZE);
-  if(memcmp(src, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return FAILED;
-
+  // Set the position to read from
+  int res;
+  res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+  if(res==-1) return FAILED;
+  
+  //now we write something so the file will actually have this dimension
+  res=write(disk->fd, src, BLOCK_SIZE);
+  
+  // If the read was interrupted by an interrupt, then reading again
+  while(res==-1 && errno == EINTR){
+    res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+    if(res==-1) return FAILED;
+    res=write(disk->fd, src, BLOCK_SIZE);
+  }
+  
+  if(res!=BLOCK_SIZE) return FAILED;
+  
   return SUCCESS;
-
 }
 
 // frees a block in position block_num, and alters the bitmap accordingly
@@ -127,10 +148,10 @@ int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
 
   // Change status and check if the status of the bitmap block
   // has been changed correctly
-  int sucStatus = BitMap_set(disk->bmap, block_num, 0);
-  if(sucStatus) return FAILED;
+  int sucStatus=BitMap_set(disk->bmap, block_num, BLOCK_FREE);
+  if(sucStatus!=BLOCK_FREE) return FAILED;
 
-  // Free block
+  // Inc num of free block
   disk->header->free_blocks++;
 
   return SUCCESS;
@@ -142,24 +163,18 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   if(disk==NULL) return FAILED;
   if(start<0 || start>disk->header->num_blocks) return FAILED;
 
-  // Iterations to obtain a true free block in disk
-  int ok = 0, new_block, retBlock;
-  for(new_block = start;
-      new_block != start-1 && !ok;
-      new_block++){
-    // Check if the block has not been used
-
-    // TODO
-    // Possible errors in the code below
-    retBlock = BitMap_get(disk->bmap, new_block-1, 0);
-printf("retBlock: %d, new_block: %d\n", retBlock, new_block);
-    if(retBlock == new_block){ ok=1; new_block--;}
-
-    // If arrive at the end of the blocks then start from 0
-    if(new_block == disk->header->num_blocks) new_block=0;
+  // Check if the block has not been used
+  int new_block, retStat;
+  new_block=disk->header->first_free_block;
+  retStat=BitMap_test(disk->bmap, new_block);
+  
+  // If new_block is already used then find a new_block free
+  if(retStat==BLOCK_USED){
+    new_block=BitMap_get(disk->bmap, start, BLOCK_FREE);
   }
-
-  //disk->header->first_free_block = new_block+1;
+  
+  disk->header->first_free_block=BitMap_get(disk->bmap, new_block+1, BLOCK_FREE);
+  // Dec num of free block
   disk->header->free_blocks--;
 
   return new_block;
@@ -171,8 +186,11 @@ int DiskDriver_flush(DiskDriver* disk){
   if(disk==NULL) return FAILED;
 
   // Sync between map and file and check possible error
-  int res = msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
+  int res=msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
   if(res==-1) return FAILED;
-
+  
+  res=fsync(disk->fd);
+  if(res==-1) return FAILED;
+  
   return SUCCESS;
 }

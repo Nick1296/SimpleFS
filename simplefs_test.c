@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include "simplefs.h"
+#include <string.h>
 
 void bitmap_info(DiskDriver *disk){
   int i,j,printed=0,print;
@@ -38,43 +39,49 @@ void driver_test(DiskDriver *disk){
 
   bitmap_info(disk);
 
-  int result, blockToWrite;
-  // provare le altre funzioni
   printf("\t testing getFreeBlock\n");
-  blockToWrite = DiskDriver_getFreeBlock(disk, 2);
-  printf("disk_getFreeBlock result: %d\n", blockToWrite);
   
-  printf("\t testing disk_write\n");
-  char *v = "Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento. hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvsl Test";
-  result = DiskDriver_writeBlock(disk, v, blockToWrite);
-  printf("disk_write result: %d\n", result);
-  printf("\t testing disk_read\n");
-  
-  char data[512];
-  result = DiskDriver_readBlock(disk, data, blockToWrite);
-  printf("disk_read result: %d\n", result);
-  printf("Data readed->%s<-\nend\n\n",data);
-  
-  bitmap_info(disk);
+  int result, blockToWrite, i;
+  for(i=0; i<disk->header->num_blocks; i++){
+    // provare le altre funzioni
+    blockToWrite = DiskDriver_getFreeBlock(disk, i);
+    printf("disk_getFreeBlock result: %d\n", blockToWrite);
+    
+    printf("\t testing disk_write\n");
+    char *v = "<Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento.hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvs Test>";
+    result = DiskDriver_writeBlock(disk, v, blockToWrite);
+    printf("disk_write result: %d\n", result);
+    printf("\t testing disk_read\n");
+    
+    char data[BLOCK_SIZE];
+    result = DiskDriver_readBlock(disk, data, blockToWrite);
+    printf("disk_read result: %d\n", result);
+    printf("Data readed->%s<-end\n\n",data);
+    memset(data, 0, sizeof(data));
+  }
   
   printf("\t testing disk_flush\n");
   result = DiskDriver_flush(disk);
   printf("flush result: %d\n", result);
   
-  int i;
-  for(i=2; i<disk->header->num_blocks+1; i++){
-    printf("\n\n\t testing disk_freeBlock\n");
+  bitmap_info(disk);
+  
+  printf("\n\n\t testing disk_freeBlock\n");
+  
+  for(i=disk->header->bitmap_blocks; i<disk->header->num_blocks; i++){
+    
     result = DiskDriver_freeBlock(disk, i);
-    printf("freeBlock result: %d\n", result);
+    printf("libero il blocco: %d\nfreeBlock result: %d\n", i, result);
     
-    bitmap_info(disk);
   }
+
+  bitmap_info(disk);
     
-    printf("\t testing disk_flush\n");
-    result = DiskDriver_flush(disk);
-    printf("flush result: %d\n", result);  
-    
-    bitmap_info(disk);
+  printf("\t testing disk_flush\n");
+  result = DiskDriver_flush(disk);
+  printf("flush result: %d\n", result);  
+  
+  bitmap_info(disk);
 
 }
 

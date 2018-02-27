@@ -14,8 +14,9 @@ typedef struct {
 
 typedef struct {
   DiskHeader* header; // mmapped
-  BitMap* bmap;  // mmapped (bitmap)
-  int fd; // for us
+  BitMap* bmap;       // mmapped (bitmap)
+  //void* blocks;       // initial pointer of blocks
+  int fd;             // for us
   // Manca il puntatore di dove iniziano i blocchi per scrivere i dati
 } DiskDriver;
 
