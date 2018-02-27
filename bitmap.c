@@ -66,7 +66,7 @@ int BitMap_get(BitMap* bmap, int start, int status){
   if(found){
     return checked;
   }
-  return -1;
+  return FAILED;
 }
 
 // sets the bit at index pos in bmap to status

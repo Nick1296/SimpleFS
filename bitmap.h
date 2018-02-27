@@ -1,5 +1,7 @@
 #pragma once
+
 #include <inttypes.h>
+
 typedef struct{
   int num_bits;
   int num_blocks;
@@ -10,6 +12,9 @@ typedef struct {
   int entry_num;
   uint8_t bit_num;
 } BitMapEntryKey;
+
+#define FAILED -1
+#define SUCCESS 0
 
 //initializes the bitmap given an empty BitMap, the number of bitmap_blocks, the number of disk blocks covered and the number of already occupied disk blocks
 void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks,int occupation);
