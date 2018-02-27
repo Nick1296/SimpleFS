@@ -13,6 +13,7 @@ typedef struct {
   uint8_t bit_num;
 } BitMapEntryKey;
 
+<<<<<<< HEAD
 
 // initializes the bitmap given an empty BitMap, the number of bitmap_blocks, 
 // the number of disk blocks covered and the number of already occupied disk blocks
@@ -20,6 +21,13 @@ void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks, int occupation);
 
 #define FAILED -1
 #define SUCCESS 0
+=======
+#define FAILED -1
+#define SUCCESS 0
+
+//initializes the bitmap given an empty BitMap, the number of bitmap_blocks, the number of disk blocks covered and the number of already occupied disk blocks
+void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks,int occupation);
+>>>>>>> 0401a7f4aa85ee3feb6ba0b6789aa3f4340c815b
 
 // converts a block index to an index in the array,
 // and a char that indicates the offset of the bit inside the array
