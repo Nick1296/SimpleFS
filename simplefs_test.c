@@ -70,10 +70,16 @@ void bitmap_test(DiskDriver *disk){
   printf("entry:%d, bit_num:%d, block: %d\n",t2.entry_num,t2.bit_num,b2);
 
   printf("\t\t Testing BitMap_get\n");
-  b1=BitMap_get(disk->bmap,0,0);
-  printf("status:%d, start: %d, bit_num:%d\n",0,0,b1);
-  b2=BitMap_get(disk->bmap,0,1);
-  printf("start:%d, status:%d, bit_num:%d\n",0,1,b2);
+  b1=BitMap_get(disk->bmap,6,0);
+  printf("start:%d, status: %d, bit_num:%d\n",6,0,b1);
+  b2=BitMap_get(disk->bmap,8,0);
+  printf("start:%d, status:%d, bit_num:%d\n",8,0,b2);
+
+  printf("\t\t Testing BitMap_test\n");
+  b1=BitMap_test(disk->bmap,6);
+  printf("status:%d, bit_num:%d\n",6,b1);
+  b2=BitMap_test(disk->bmap,0);
+  printf("status:%d,bit_num:%d\n",0,b2);
 
   printf("\t\t Testing BitMap_set\n");
   BitMap_set(disk->bmap,10,1);

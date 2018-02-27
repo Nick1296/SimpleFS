@@ -47,9 +47,9 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
-  
+
   printf("Exists: %d\n", exists);
-  
+
   //initializing the file if it doesn't exist
   if(!exists){
     //creating and initializing the disk header
@@ -60,25 +60,8 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
     d->free_blocks=num_blocks-occupation;
     d->first_free_block=occupation+1;
 
-    //creating and initializing the bitmap
-    BitMap *b=map+sizeof(DiskHeader);
-    b->entries=(uint8_t*)b+sizeof(BitMap);
-    b->num_blocks=bitmap_blocks;
-    b->num_bits=num_blocks;
-    uint8_t *bitmap=b->entries;
-    // we use a mask to sign the occupied blocks
-    uint8_t mask;
-    int j,i,write=occupation,written=0;
-    for(i=0;i<bitmap_blocks;i++){
-      mask=0;
-      for(j=0; j<8 && written<write; j++){
-        mask=mask>>1;
-        mask+=128;
-        written++;
-      }
-      bitmap[i]=mask;
-    }
-
+  BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
+  
   }
   //populating the disk driver
   disk->header=map;
@@ -92,12 +75,12 @@ int DiskDriver_readBlock(DiskDriver* disk, void* dest, int block_num){
   if(disk==NULL) return -1;
   if(dest==NULL) return -1;
   if(block_num<0) return -1;
-  
+
   memcpy(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE);
-  
+
   // Check if the block is copied validly
   if(memcmp(dest, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
-    
+
   return 0;
 }
 
@@ -107,16 +90,16 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
   if(src==NULL) return -1;
   if(block_num<0) return -1;
 
-  // Operation on bitmap 
+  // Operation on bitmap
   // TODO
   // index obtained from BitMap_get
   // BitMap_set
-  
+
   memcpy(disk->header+sizeof(DiskHeader)+block_num, src, BLOCK_SIZE);
-  
+
   // Check if the block is copied validly
   if(memcmp(src, disk->header+sizeof(DiskHeader)+block_num, BLOCK_SIZE)!=0) return -1;
-    
+
   return 0;
 
 }
@@ -125,15 +108,15 @@ int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
   // Check if the parameters passed are valid
   if(disk==NULL) return -1;
   if(block_num<0) return -1;
-     
+
   // Invalidate the bit corresponds to this block on the bitmap
   // TODO
-  
+
   // Free block
   DiskHeader *header = disk->header;
   header->num_blocks--;
   header->free_blocks++;
-  
+
   return 0;
 }
 
@@ -141,30 +124,30 @@ int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
 int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   // Check if the parameter passed is valid
   if(disk==NULL) return -1;
-  
+
   // Iterations to obtain a true free block in disk
   int ok = 0, new_block;
   while(!ok){
     new_block = disk->header->first_free_block;
-    
+
     // Check if new_block is real free (check bitmap)
     // TODO
-  
+
     // If new_block is real free then ok=1
   }
-  
+
   return new_block;
 }
 
 int DiskDriver_flush(DiskDriver* disk){
   // Check if the parameter passed is valid
   if(disk==NULL) return -1;
-  
+
   int res = msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
   /*if(res==-1 && errno==EBUSY){ printf("EBUSY\n"); return -1; }
   if(res==-1 && errno==EINVAL){ printf("EINVAL\n"); return -1; }
   if(res==-1 && errno==ENOMEM){ printf("ENOMEM\n"); return -1; }*/
   if(res==-1) return -1;
-  
+
   return 0;
 }

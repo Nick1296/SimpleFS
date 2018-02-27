@@ -1,5 +1,28 @@
 #include "bitmap.h"
 
+
+void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks,int occupation){
+
+  //initializing the bitmap
+  b->entries=(uint8_t*)b+sizeof(BitMap);
+  b->num_blocks=bitmap_blocks;
+  b->num_bits=disk_blocks;
+  uint8_t *bitmap=b->entries;
+  // we use a mask to sign the occupied blocks
+  uint8_t mask;
+  int j,i,write=occupation,written=0;
+  for(i=0;i<bitmap_blocks;i++){
+    mask=0;
+    for(j=0; j<8 && written<write; j++){
+      mask=mask>>1;
+      mask+=128;
+      written++;
+    }
+    bitmap[i]=mask;
+  }
+}
+
+
 // converts a block index to an index in the array,
 // and a the offset of the bit inside the array
 BitMapEntryKey BitMap_blockToIndex(int num){
@@ -22,33 +45,45 @@ int BitMap_indexToBlock(int entry, uint8_t bit_num){
 int BitMap_get(BitMap* bmap, int start, int status){
   int i,j,found=0;
   int entry=start/8;
-  int bit=start%8;
+  // bit that have been already checked/skipped
+  int checked=start;
+  //initial displacement in the entry
+  int starting_bit;
   uint8_t mask;
+
   for(i=entry;i<bmap->num_blocks && !found;i++){
+    starting_bit=checked%8;
     mask=128;
-    for(j=bit;j<8 && bit<bmap->num_bits && !found;j++){
+    mask=mask>>starting_bit;
+    for(j=starting_bit;j<8 && checked<bmap->num_bits && !found;j++){
       found=((mask & bmap->entries[i])?1:0)==status;
       if(!found){
-        bit++;
+        checked++;
         mask=mask>>1;
       }
     }
   }
   if(found){
-    return bit;
+    return checked;
   }
   return -1;
 }
 
 // sets the bit at index pos in bmap to status
 int BitMap_set(BitMap* bmap, int pos, int status){
-  int i,entry=(pos-1)/8, bit=(pos-1)%8;
+  int entry=(pos-1)/8, bit=(pos-1)%8;
   uint8_t mask=128;
 
-  for(i=0;i<bit;i++){
-    mask>>=1;
-  }
+  mask=mask>>bit;
   bmap->entries[entry]= (status)? bmap->entries[entry] | mask : bmap->entries[entry] & ~mask;
 
   return status;
+}
+
+int BitMap_test(BitMap* bmap, int pos){
+  int entry=pos/8;
+  int bit=pos%8;
+  uint8_t mask=128;
+  mask=mask>>bit;
+  return (bmap->entries[entry] & mask)? 1:0;
 }
