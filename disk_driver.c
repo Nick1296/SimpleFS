@@ -1,33 +1,15 @@
+#pragma once
 #include "disk_driver.h"
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
 
-#define CHECK_ERR(cond,msg)  if (cond) {                       \
-                              perror(msg);                     \
-                              _exit(EXIT_FAILURE);             \
-                             }
 
-#define FAILED -1
-#define SUCCESS 0
-#define BLOCK_FREE 0
-#define BLOCK_USED 1
 
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   int res,exists=1,fd; //1= file already exists 0=file doesn't exists yet
-  //checking if the file exists
+  //checking if the file exists or if we need to format the drive
   res=access(filename,F_OK);
-  if(res==FAILED && errno==ENOENT){
-    exists=0;
-  }else{
-    CHECK_ERR(res==FAILED,"Can't test if the file exists");
-    exists=1;
+  CHECK_ERR(res==FAILED && errno!=ENOENT,"Can't test if the file exists");
+  if(!res){
+    return FAILED;
   }
 
   // opening the file and creating it if necessary
@@ -43,7 +25,7 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   //now we write something so the file will actually have this dimension
   res=write(fd,"/0",1);
   CHECK_ERR(res==FAILED,"can't write into file");
-
+  
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
@@ -53,19 +35,51 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
   CHECK_ERR(map==MAP_FAILED,"error mapping the file");
 
-  //initializing the file if it doesn't exist
-  if(!exists){
-    //creating and initializing the disk header
-    DiskHeader *d=map;
-    d->num_blocks=num_blocks;
-    d->bitmap_blocks=(bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
-    d->bitmap_entries=bitmap_blocks;
-    d->free_blocks=num_blocks-occupation;
-    d->first_free_block=occupation;
-    //initializing the bitmap
-    BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
+  //creating and initializing the disk header
+  DiskHeader *d=map;
+  d->num_blocks=num_blocks;
+  d->bitmap_blocks=(bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+  d->bitmap_entries=bitmap_blocks;
+  d->free_blocks=num_blocks-occupation;
+  d->first_free_block=occupation;
+ 
+  //initializing the bitmap
+  BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
 
+  //populating the disk driver
+  disk->header=map;
+  disk->bmap=map+sizeof(DiskHeader);
+  disk->fd=fd;
+}
+
+//assiuming that the file is already initialized loads the disk
+int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
+  int res,fd; //1= file already exists 0=file doesn't exists yet
+  //checking if the file exists or if we need to format the drive
+  res=access(filename,F_OK);
+  if(res==FAILED && errno==ENOENT){
+    return FAILED;
+  }else{
+    CHECK_ERR(res==FAILED,"Can't test if the file exists");\
   }
+
+  // opening the file and creating it if necessary
+  fd=open(filename,O_RDWR,0666);
+  //checking if the open was successful
+  CHECK_ERR(fd==FAILED,"error opening the file");
+  
+  //calculating the bitmap size (rounded up)
+  int bitmap_blocks=(num_blocks+7)/8;
+  //rounded up block occupation of DiskHeader and bitmap
+  int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+
+  //mmap the file
+  void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
+  CHECK_ERR(map==MAP_FAILED && errno!=SIGBUS,"error mapping the file");
+  if(map==MAP_FAILED){
+    return FAILED;
+  }
+
   //populating the disk driver
   disk->header=map;
   disk->bmap=map+sizeof(DiskHeader);

@@ -1,7 +1,16 @@
 #pragma once
 #include "bitmap.h"
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include "common.h"
 
-#define BLOCK_SIZE 512
 // this is stored in the 1st block of the disk
 typedef struct {
   int num_blocks;      // blocks used to store files and directories
@@ -24,13 +33,15 @@ typedef struct {
    have to be calculated after the space occupied by the bitmap
 */
 
-// opens the file (creating it if necessary)
+// creates the file
 // allocates the necessary space on the disk
 // calculates how big the bitmap should be
-// if the file was new
 // compiles a disk header, and fills in the bitmap of appropriate size
 // with all 0 (to denote the free space);
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks);
+
+//loads an already initialized disk
+int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks);
 
 // reads the block in position block_num
 // returns -1 if the block is free according to the bitmap
