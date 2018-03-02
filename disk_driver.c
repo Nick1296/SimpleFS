@@ -1,16 +1,11 @@
-#pragma once
 #include "disk_driver.h"
 
-
-
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
-  int res,exists=1,fd; //1= file already exists 0=file doesn't exists yet
+  int res,fd;
   //checking if the file exists or if we need to format the drive
   res=access(filename,F_OK);
   CHECK_ERR(res==FAILED && errno!=ENOENT,"Can't test if the file exists");
-  if(!res){
-    return FAILED;
-  }
+  CHECK_ERR(res!=FAILED && res!=0,"Can't test if the file exists"); // TO VERIFY
 
   // opening the file and creating it if necessary
   fd=open(filename,O_CREAT | O_RDWR,0666);
@@ -84,6 +79,8 @@ int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
   disk->header=map;
   disk->bmap=map+sizeof(DiskHeader);
   disk->fd=fd;
+  
+  return SUCCESS;
 }
 
 // Reads the block in position block_num
@@ -216,6 +213,7 @@ void DiskDriver_shutdown(DiskDriver* disk){
   int bitmap_blocks=(disk->header->num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+  printf("occupazione:%d\n", occupation);
 
   //flushing changes
   res=DiskDriver_flush(disk);
