@@ -21,10 +21,9 @@ void bitmap_info(DiskDriver *disk){
 
 }
 
+//mode=0 writes on all blocks and and a non existent once
+//mode=1 read and frees all blocks
 void driver_test(DiskDriver *disk, int mode){
-
-  DiskDriver_init(disk,"disk",10);
-  printf("associated file descriptor: %d\n",disk->fd);
 
   printf("\t DiskHeader info:\n");
   printf("num blocks: %d\n",disk->header->num_blocks );
@@ -61,9 +60,9 @@ void driver_test(DiskDriver *disk, int mode){
     result = DiskDriver_readBlock(disk, data, i);
     printf("disk_read block num %d, result: %d\n", i, result);
     printf("Data readed->%s<-end\n\n",data);
-    memset(data, 0, sizeof(data));    
+    memset(data, 0, sizeof(data));
   }
-  
+
   if(mode) printf("\n\n\t testing disk_freeBlock\n");
 
   for(i=disk->header->bitmap_blocks; i<disk->header->num_blocks && mode; i++){
@@ -138,11 +137,14 @@ int main(int agc, char** argv) {
   printf("\t\t Testing disk_init:\n");
   //let's eliminate the previously created file if any
   unlink("disk");
+  //we create a new disk
+  DiskDriver_init(&disk,"disk",10);
+  printf("associated file descriptor: %d\n",disk.fd);
   driver_test(&disk, 0);
   //bitmap_test(&disk);
-  printf("disk drive shutdown...");
+  printf("disk drive shutdown\n");
   DiskDriver_shutdown(&disk);
-  printf("done.\n");
+  printf("\t\t Testing disk_load:\n");
   //now let's retest all the functions whit an existing file
   DiskDriver_load(&disk,"disk",10);
   driver_test(&disk, 1);

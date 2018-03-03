@@ -20,7 +20,7 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   //now we write something so the file will actually have this dimension
   res=write(fd,"/0",1);
   CHECK_ERR(res==FAILED,"can't write into file");
-  
+
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
@@ -37,7 +37,7 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   d->bitmap_entries=bitmap_blocks;
   d->free_blocks=num_blocks-occupation;
   d->first_free_block=occupation;
- 
+
   //initializing the bitmap
   BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
 
@@ -62,7 +62,7 @@ int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
   fd=open(filename,O_RDWR,0666);
   //checking if the open was successful
   CHECK_ERR(fd==FAILED,"error opening the file");
-  
+
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
@@ -79,7 +79,7 @@ int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
   disk->header=map;
   disk->bmap=map+sizeof(DiskHeader);
   disk->fd=fd;
-  
+
   return SUCCESS;
 }
 
@@ -177,6 +177,10 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   // Check if the block has not been used
   int new_block, retStat;
   new_block=disk->header->first_free_block;
+  //if there aren't free blocks
+  if(new_block==FAILED){
+    return FAILED;
+  }
   retStat=BitMap_test(disk->bmap, new_block);
 
   // If new_block is already used then find a new_block free
@@ -185,6 +189,7 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   }
 
   disk->header->first_free_block=BitMap_get(disk->bmap, new_block+1, BLOCK_FREE);
+
   // Dec num of free block
   disk->header->free_blocks--;
 
