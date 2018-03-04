@@ -4,9 +4,9 @@ CC=gcc
 AR=ar
 
 
-BINS= simplefs_test.out
+BINS= simplefs_test
 
-OBJS = bitmap.c disk_driver.c
+OBJS = simplefs_test.c simplefs.c bitmap.c disk_driver.c
 
 HEADERS=simplefs.h\
         disk_driver.h\
@@ -20,11 +20,11 @@ HEADERS=simplefs.h\
 
 all:	$(BINS)
 
-simplefs_test.out: simplefs_test.c $(OBJS)
-	$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
+simplefs_test: $(OBJS)
+		$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 
 clean:
 	rm -rf *.o *~  $(BINS)
 
 test:
-	./simplefs_test.out
+	./simplefs_test

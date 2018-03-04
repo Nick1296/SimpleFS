@@ -43,7 +43,7 @@ void driver_test(DiskDriver *disk, int mode){
     printf("disk_getFreeBlock result: %d\n", blockToWrite);
 
     printf("\t testing disk_write\n");
-    char *v = "<Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento.hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvs Test>";
+    char v[513] = "<Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento.hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvs Test>";
     result = DiskDriver_writeBlock(disk, v, blockToWrite);
     printf("disk_write result: %d\n", result);
   }
@@ -124,32 +124,52 @@ void bitmap_test(DiskDriver *disk){
   bitmap_info(disk);
 }
 
-int main(int agc, char** argv) {
-  printf("FirstBlock size %ld\n", sizeof(FirstFileBlock));
-  printf("DataBlock size %ld\n", sizeof(FileBlock));
-  printf("FirstDirectoryBlock size %ld\n", sizeof(FirstDirectoryBlock));
-  printf("DirectoryBlock size %ld\n", sizeof(DirectoryBlock));
+void diskdriver_test(DiskDriver* disk){
 
-
-  DiskDriver disk;
   printf("\t\t\t Testing disk driver module:\n");
-
   printf("\t\t Testing disk_init:\n");
   //let's eliminate the previously created file if any
   unlink("disk");
   //we create a new disk
-  DiskDriver_init(&disk,"disk",10);
-  printf("associated file descriptor: %d\n",disk.fd);
-  driver_test(&disk, 0);
+  DiskDriver_init(disk,"disk",10);
+  printf("associated file descriptor: %d\n",disk->fd);
+  driver_test(disk, 0);
   //bitmap_test(&disk);
   printf("disk drive shutdown\n");
-  DiskDriver_shutdown(&disk);
+  DiskDriver_shutdown(disk);
   printf("\t\t Testing disk_load:\n");
-  //now let's retest all the functions whit an existing file
-  DiskDriver_load(&disk,"disk",10);
-  driver_test(&disk, 1);
+  //now let's retest all the functions with an existing file
+  DiskDriver_load(disk,"disk",10);
+  driver_test(disk, 1);
   //bitmap_test(&disk);
   printf("disk drive shutdown...");
-  DiskDriver_shutdown(&disk);
+  DiskDriver_shutdown(disk);
   printf("done.\n");
+}
+
+void format_test(SimpleFS* fs){
+  printf("\t\t Testing SimpleFS_format:\n");
+  SimpleFS_format(fs);
+  driver_test(fs->disk, 0);
+  DiskDriver_shutdown(fs->disk);
+  DiskDriver_load(fs->disk,fs->filename,10);
+  driver_test(fs->disk, 1);
+  DiskDriver_shutdown(fs->disk);
+}
+
+void fs_test(SimpleFS* fs){
+  format_test(fs);
+}
+
+int main(int agc, char** argv) {
+
+  DiskDriver disk;
+  SimpleFS fs;
+  char diskname[]="disk";
+  fs.block_num=10;
+  fs.filename=diskname;
+  fs.disk=&disk;
+
+  fs_test(&fs);
+
 }
