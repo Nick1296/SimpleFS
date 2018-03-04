@@ -52,3 +52,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 disk
+
+# MAC DI MEDDA
+.DS_Store
