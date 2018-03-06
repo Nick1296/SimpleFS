@@ -157,12 +157,42 @@ void format_test(SimpleFS* fs){
   DiskDriver_shutdown(fs->disk);
 }
 
-void fs_test(SimpleFS* fs){
-  format_test(fs);
+void init_test(SimpleFS *fs){
+  DirectoryHandle *dh;
+  int res;
+  printf("\t\t Testing SimpleFS_init:\n");
+  SimpleFS_format(fs);
+  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,fs->disk);
+  printf("now we print the directory handle\n");
+  printf("simplefs: %p\n",dh->sfs);
+
+
+  printf("current_block: %p\n",dh->current_block);
+  printf("\t->prev block: %d\n",dh->current_block->previous_block);
+  printf("\t->next block: %d\n",dh->current_block->next_block);
+  printf("\t->block in file: %d\n",dh->current_block->block_in_file);
+
+  printf("FirstDirectoryBlock: %p\n",dh->dcb);
+
+  printf("\t->FCB:\n");
+  printf("\t\t->parent directory: %d\n",dh->dcb->fcb.directory_block);
+  printf("\t\t->name: %s\n",dh->dcb->fcb.name);
+  printf("\t\t->size in bytes: %d\n",dh->dcb->fcb.size_in_bytes);
+  printf("\t\t->size in blocks: %d\n",dh->dcb->fcb.size_in_blocks);
+  printf("\t\t->is dir: %d\n",dh->dcb->fcb.is_dir);
+
+  printf("\t->num entries: %d\n",dh->dcb->num_entries);
+
+
+  printf("parent directory: %p\n",dh->directory);
+  printf("pos in block: %d\n",dh->pos_in_block);
+  printf("pos in dir: %d\n",dh->pos_in_dir);
 }
 
 int main(int agc, char** argv) {
-
+  unlink("disk");
   DiskDriver disk;
   SimpleFS fs;
   char diskname[]="disk";
@@ -170,6 +200,6 @@ int main(int agc, char** argv) {
   fs.filename=diskname;
   fs.disk=&disk;
 
-  fs_test(&fs);
+  init_test(&fs);
 
 }
