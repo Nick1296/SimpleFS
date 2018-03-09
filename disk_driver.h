@@ -1,15 +1,5 @@
 #pragma once
 #include "bitmap.h"
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <errno.h>
-#include <signal.h>
 #include "common.h"
 
 // this is stored in the 1st block of the disk

@@ -1,3 +1,15 @@
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <signal.h>
+
+
 #define CHECK_ERR(cond,msg)  if (cond) {                       \
                               perror(msg);                     \
                               _exit(EXIT_FAILURE);             \

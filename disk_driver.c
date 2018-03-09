@@ -12,26 +12,26 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   //checking if the open was successful
   CHECK_ERR(fd==FAILED,"error opening the file");
 
-  //now we need to prepare the file to be mmapped because it needs to have the same dimension of the mmapped array
-  //to do so we need to write something (/0) to the last byte of the file (num_blocks*BLOCK_SIZE)
-  //we have repositioned the file pointer to the last byte
-  res=lseek(fd,num_blocks*BLOCK_SIZE-1,SEEK_SET);
-  CHECK_ERR(res==FAILED,"can't reposition pointer file");
-  //now we write something so the file will actually have this dimension
-  res=write(fd,"/0",1);
-  CHECK_ERR(res==FAILED,"can't write into file");
-
   //calculating the bitmap size (rounded up)
   int bitmap_blocks=(num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+
+  //now we need to prepare the file to be mmapped because it needs to have the same dimension of the mmapped array
+  //to do so we need to write something (/0) to the last byte of the file (num_blocks*BLOCK_SIZE)
+  //we have repositioned the file pointer to the last byte
+  res=lseek(fd,occupation*BLOCK_SIZE-1,SEEK_SET);
+  CHECK_ERR(res==FAILED,"can't reposition pointer file");
+  //now we write something so the file will actually have this dimension
+  res=write(fd,"/0",1);
+  CHECK_ERR(res==FAILED,"can't write into file");
 
   //mmap the file
   void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
   CHECK_ERR(map==MAP_FAILED,"error mapping the file");
 
   //creating and initializing the disk header
-  DiskHeader *d=map;
+  DiskHeader *d=(DiskHeader*)map;
   d->num_blocks=num_blocks;
   d->bitmap_blocks=(bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
   d->bitmap_entries=bitmap_blocks;
@@ -39,11 +39,11 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   d->first_free_block=occupation;
 
   //initializing the bitmap
-  BitMap_init(map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
+  BitMap_init((BitMap*)map+sizeof(DiskHeader),bitmap_blocks,num_blocks,occupation);
 
   //populating the disk driver
-  disk->header=map;
-  disk->bmap=map+sizeof(DiskHeader);
+  disk->header=(DiskHeader*)map;
+  disk->bmap=(BitMap*)map+sizeof(DiskHeader);
   disk->fd=fd;
 }
 
@@ -76,8 +76,8 @@ int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
   }
 
   //populating the disk driver
-  disk->header=map;
-  disk->bmap=map+sizeof(DiskHeader);
+  disk->header=(DiskHeader*)map;
+  disk->bmap=(BitMap*)map+sizeof(DiskHeader);
   disk->fd=fd;
 
   return SUCCESS;
@@ -119,10 +119,6 @@ int DiskDriver_writeBlock(DiskDriver* disk, void* src, int block_num){
   if(disk==NULL) return FAILED;
   if(src==NULL) return FAILED;
   if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
-
-  // Check if the block has not been used
-  int retBlock=BitMap_test(disk->bmap, block_num);
-  if(retBlock==BLOCK_USED) return FAILED;
 
   // Change status and check if the status of the bitmap block has been changed correctly
   int sucStatus=BitMap_set(disk->bmap, block_num, BLOCK_USED);
@@ -201,8 +197,13 @@ int DiskDriver_flush(DiskDriver* disk){
   // Check if the parameter passed is valid
   if(disk==NULL) return FAILED;
 
+  //calculating the bitmap size (rounded up)
+  int bitmap_blocks=(disk->header->num_blocks+7)/8;
+  //rounded up block occupation of DiskHeader and bitmap
+  int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
+
   // Sync between map and file and check possible error
-  int res=msync(disk->header, disk->header->num_blocks*BLOCK_SIZE, MS_SYNC);
+  int res=msync(disk->header, occupation*BLOCK_SIZE, MS_SYNC);
   if(res==-1) return FAILED;
 
   res=fsync(disk->fd);

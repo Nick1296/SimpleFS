@@ -190,8 +190,31 @@ void init_test(SimpleFS *fs){
   printf("pos in block: %d\n",dh->pos_in_block);
   printf("pos in dir: %d\n",dh->pos_in_dir);
 }
+void create_test(DirectoryHandle* dh){
+  //firstly we create try to create two file with the same name to test if they are detected as files with the same name
+	printf("creating a file with 128 charaters name\n");
+	int i;
+	char fname[128];
+	for(i=0;i<127;i++){
+		fname[i]='a';
+	}
+	fname[127]='\n';
+	FileHandle* fh=SimpleFS_createFile(dh,fname);
+  free(fh->fcb);
+  free(fh);
+  printf("creating a new file named test, for the 2nd time\n");
+  FileHandle* fh1=SimpleFS_createFile(dh,"test");
+  printf("fh:%p ,fh1: %p\n",fh,fh1);
+  //then we create files to test if the directory block are allocated successfully
+  char name[4];
+  for(i=0;i<150;i++){
+    sprintf(name, "%d\n",i);
+    SimpleFS_createFile(dh,name);
+  }
+}
 
 int main(int agc, char** argv) {
+  int res;
   unlink("disk");
   DiskDriver disk;
   SimpleFS fs;
@@ -200,6 +223,12 @@ int main(int agc, char** argv) {
   fs.filename=diskname;
   fs.disk=&disk;
 
-  init_test(&fs);
+
+  SimpleFS_format(&fs);
+  //bitmap_info(&disk);
+  res=DiskDriver_load(fs.disk,fs.filename,fs.block_num);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  DirectoryHandle *dh=SimpleFS_init(&fs,&disk);
+  create_test(dh);
 
 }

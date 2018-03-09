@@ -3,6 +3,7 @@
 #include "disk_driver.h"
 #include "common.h"
 
+
 /*these are structures stored on disk*/
 
 // header, occupies the first portion of each block in the disk
@@ -29,6 +30,7 @@ typedef struct {
 // an FCB storing file infos
 // and can contain some data
 
+//TODO this structure must be eliminated
 typedef struct{
   int block_in_disk;
   int nextIndex;
@@ -40,12 +42,15 @@ typedef struct {
   BlockHeader header;
   FileControlBlock fcb;
   int next_IndexBlock;
-  Index blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int))/sizeof(Index)] ;
+  int num_entries;
+  int blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)] ;
 } FirstFileBlock;
 
 
 typedef struct{
-  Index indexes[BLOCK_SIZE/sizeof(Index)];
+  int nextIndex;
+  int previousIndex;
+  int indexes[BLOCK_SIZE/sizeof(int)];
 } IndexBlock;
 
 // this is one of the next physical blocks of a file
