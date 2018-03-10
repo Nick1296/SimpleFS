@@ -20,7 +20,7 @@ typedef struct {
   int directory_block; // first block of the parent directory
   int block_in_disk;   // repeated position of the block on the disk
   char name[128];
-  int  size_in_bytes;
+  int size_in_bytes;
   int size_in_blocks;
   int is_dir;          // 0 for file, 1 for dir
 } FileControlBlock;
@@ -120,10 +120,8 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename);
 // reads in the (preallocated) blocks array, the name of all files in a directory
 int SimpleFS_readDir(char** names, DirectoryHandle* d);
 
-
 // opens a file in the  directory d. The file should be exisiting
 FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename);
-
 
 // closes a file handle (destroyes it)
 int SimpleFS_close(FileHandle* f);
@@ -139,8 +137,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size);
 int SimpleFS_read(FileHandle* f, void* data, int size);
 
 // returns the number of bytes read (moving the current pointer to pos)
-// returns pos on success
-// -1 on error (file too short)
+// returns pos on success -1 on error (file too short)
 int SimpleFS_seek(FileHandle* f, int pos);
 
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
@@ -149,11 +146,10 @@ int SimpleFS_seek(FileHandle* f, int pos);
  int SimpleFS_changeDir(DirectoryHandle* d, char* dirname);
 
 // creates a new directory in the current one (stored in fs->current_directory_block)
-// 0 on success
-// -1 on error
+// 0 on success -1 on error
 int SimpleFS_mkDir(DirectoryHandle* d, char* dirname);
 
 // removes the file in the current directory
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
-int SimpleFS_remove(SimpleFS* fs, char* filename);
+int SimpleFS_remove(DirectoryHandle* d, char* filename);

@@ -219,7 +219,6 @@ void DiskDriver_shutdown(DiskDriver* disk){
   int bitmap_blocks=(disk->header->num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
-  printf("occupazione:%d\n", occupation);
 
   //flushing changes
   res=DiskDriver_flush(disk);
