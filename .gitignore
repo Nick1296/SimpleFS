@@ -53,5 +53,8 @@ Mkfile.old
 dkms.conf
 disk
 
+# KDevelop
+*.kdev*
+
 # MAC DI MEDDA
 .DS_Store

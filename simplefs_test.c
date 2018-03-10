@@ -198,37 +198,53 @@ void create_test(DirectoryHandle* dh){
 	for(i=0;i<127;i++){
 		fname[i]='a';
 	}
-	fname[127]='\n';
+	fname[127]='\0';
 	FileHandle* fh=SimpleFS_createFile(dh,fname);
-  free(fh->fcb);
-  free(fh);
+	printf("result: %p\n",fh);
+	//cleanup of the allocated memory
+	free(fh->fcb);
+	free(fh);
+	printf("we create a file with name: test\n");
+	fh=SimpleFS_createFile(dh,"test");
+	printf("result: %p\n",fh);
+	//cleanup of the allocated memory
+	free(fh->fcb);
+	free(fh);
   printf("creating a new file named test, for the 2nd time\n");
-  FileHandle* fh1=SimpleFS_createFile(dh,"test");
-  printf("fh:%p ,fh1: %p\n",fh,fh1);
-  //then we create files to test if the directory block are allocated successfully
+	fh=SimpleFS_createFile(dh,"test");
+	printf("result: %p\n",fh);
+
+	//then we create files to test if the directory block are allocated successfully
   char name[4];
-  for(i=0;i<150;i++){
-    sprintf(name, "%d\n",i);
-    SimpleFS_createFile(dh,name);
+  for(i=0;i<10;i++){
+    sprintf(name, "%d",i);
+    fh=SimpleFS_createFile(dh,name);
+		printf("result: %p\n",fh);
+		//cleanup of the allocated memory
+		free(fh->fcb);
+		free(fh);
   }
 }
 
-int main(int agc, char** argv) {
+int main(void) {
   int res;
   unlink("disk");
-  DiskDriver disk;
-  SimpleFS fs;
+  DiskDriver *disk=(DiskDriver*)malloc(sizeof(DiskDriver));
+  SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="disk";
-  fs.block_num=10;
-  fs.filename=diskname;
-  fs.disk=&disk;
+  fs->block_num=30;
+  fs->filename=diskname;
+  fs->disk=disk;
 
-
-  SimpleFS_format(&fs);
-  //bitmap_info(&disk);
-  res=DiskDriver_load(fs.disk,fs.filename,fs.block_num);
+  SimpleFS_format(fs);
+  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
   CHECK_ERR(res==FAILED,"can't load the fs");
-  DirectoryHandle *dh=SimpleFS_init(&fs,&disk);
+  DirectoryHandle *dh=SimpleFS_init(fs,disk);
   create_test(dh);
 
+	DiskDriver_shutdown(disk);
+	free(disk);
+	free(dh->dcb);
+	free(dh);
+	free(fs);
 }
