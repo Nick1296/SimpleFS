@@ -76,84 +76,22 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
   if(d->sfs->disk->header->free_blocks<3){
     return NULL;
   }
+  int res;
+	//we know how many entries has a directory but we don't know how many entries per block we have se we calculate it
+	int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
+	int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 
-  //now we check if the file is already present in the given directory
-  int i,res;
-  //this variable is used to stop the search if we have already found a matching filename
-  int searching=1;
-
-
-  //we know how many entries has a directorybut we don't know how many entries per block we have se we calculate it
-  int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
-  int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
-
-  // in here we will save the read FirstFileBlock to check if has a matching file name
-  FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
-  //we save the number of entries in the directory
-  int dir_entries=d->dcb->num_entries;
-  printf("dir_entries %d\n",dir_entries);
-
-  // we search for all the files in the current directory block
-  for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
-    //we get the file
-    printf("file_blocks[%d]: %d\n",i,d->dcb->file_blocks[i]);
-    res=DiskDriver_readBlock(d->sfs->disk,file,d->dcb->file_blocks[i]);
-    CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
-    //we check if the file has the same name of the file we want to create
-    searching=strncmp(file->fcb.name,filename,strlen(filename));
-printf("filename:%s\n", filename);
-  }
-  if(searching==0){
-    free(file);
-    return NULL;
-  }
-  //now we search in the other directory blocks which compose the directory list
-
-  DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
-  int next_block=d->dcb->header.next_block;
-  //we save the block in disk of the current directory block for future use
-  int dir_block_in_disk=d->dcb->fcb.block_in_disk;
-  //we adjust the number of remaining entries
-  dir_entries-=FDB_max_elements;
-
-  //we start the search in the rest of the chained list
-  while(next_block!=MISSING){
-
-    //we get the next directory block;
-    dir_block_in_disk=next_block;
-		// we clean our directory before getting the new one
-		memset(dir,0,sizeof(DirectoryBlock));
-    res=DiskDriver_readBlock(d->sfs->disk,dir,next_block);
-
-		if(res==FAILED){
-			free(file);
-			free(dir);
-			CHECK_ERR(res==FAILED,"the directory contains a free block in the entry chain");
+	SearchResult *search=SimpleFS_search(d,filename);
+	//if the file already exists we return NULL
+	if(search->result==SUCCESS){
+		free(search->element);
+		if(search->last_visited_dir_block!=NULL){
+			free(search->last_visited_dir_block);
 		}
+		return NULL;
+	}
 
-    //we search it
-    for(i=0;i<dir_entries && i<DB_max_elements && searching;i++){
-      //we get the file
-      res=DiskDriver_readBlock(d->sfs->disk,file,dir->file_blocks[i]);
-			if(res==FAILED){
-				free(file);
-				free(dir);
-				CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
-			}
-
-      //we check if the file has the same name of the file we want to create
-      searching=strncmp(file->fcb.name,filename,strlen(filename));
-    }
-    if(searching==0){
-			free(dir);
-      free(file);
-      return NULL;
-    }
-    //now we need to change block and to adjust the number of remaining entries to check
-    dir_entries-=DB_max_elements;
-    next_block=dir->header.next_block;
-  }
-
+  FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
   //we get a free block from the disk
   int file_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
   CHECK_ERR(file_block==FAILED,"full disk on file creation");
@@ -196,11 +134,14 @@ printf("filename:%s\n", filename);
   //if the the DirectoryBlock with index 1 exists we can use the last block scanned while we were searching
   //for a file with the same filename to update the directory info or create a new block linked to that one
   if(d->dcb->header.next_block!=MISSING){
+		//TODO get from the SearchResult the last visited directory block
+		DirectoryBlock* dir=search->last_visited_dir_block;
     //in this case we have at least a DirectoryBlock
     if(dir->header.block_in_file==dir_block){
 			if(dir->file_blocks[dir_block_displacement]!=MISSING){
 				free(file);
 				free(dir);
+				free(search);
 				CHECK_ERR(dir->file_blocks[dir_block_displacement]!=MISSING,"occupied dir entry");
 			}
       dir->file_blocks[dir_block_displacement]=file_block;
@@ -212,7 +153,7 @@ printf("filename:%s\n", filename);
       DirectoryBlock *new_dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
       new_dir->header.block_in_file=dir->header.block_in_file+1;
       new_dir->header.next_block=MISSING;
-      new_dir->header.previous_block=dir_block_in_disk;
+      new_dir->header.previous_block=search->dir_block_in_disk;
       new_dir->file_blocks[0]=file_block;
       dir->header.next_block=new_dir_block;
       //we write the new dir_block
@@ -221,25 +162,32 @@ printf("filename:%s\n", filename);
 			if(res==FAILED){
 				free(file);
 				free(dir);
+				free(search);
 				CHECK_ERR(res==FAILED,"can't write the new dir_block on disk");
 			}
 
     }
     //we write the updated dir_block
-    res=DiskDriver_writeBlock(d->sfs->disk,dir,dir_block_in_disk);
+    res=DiskDriver_writeBlock(d->sfs->disk,dir,search->dir_block_in_disk);
 		if(res==FAILED){
 			free(file);
+			free(dir);
+			free(search);
 			CHECK_ERR(res==FAILED,"can't write the updated dir_block on disk");
 		}
 
+		//now we can safely deallocate dir
+		free(dir);
+
   }else{
     // in this case we must update only the FirstDirectoryBlock and on the worst case create a new block
-
+		//so we can deallocate the SearchResult
+		free(search);
     //we update only the FirstDirectoryBlock
     if(dir_block==0){
 			if(d->dcb->file_blocks[dir_block_displacement]!=MISSING){
-				free(file);
-				CHECK_ERR(d->dcb->file_blocks[dir_block_displacement]!=MISSING,"occupied dir entry");
+			free(file);
+			CHECK_ERR(d->dcb->file_blocks[dir_block_displacement]!=MISSING,"occupied dir entry");
 			}
 
       d->dcb->file_blocks[dir_block_displacement]=file_block;
@@ -263,13 +211,11 @@ printf("filename:%s\n", filename);
 			free(new_dir);
 			if(res==FAILED){
 				free(file);
+				free(search);
 			}
       CHECK_ERR(res==FAILED,"can't write the new dir_block on disk");
     }
   }
-  //now we can safely deallocate dir
-  free(dir);
-  printf("updating dcb->num_entries\n");
   d->dcb->num_entries+=1;
   //we write the updated FirstDirectoryBlock
   res=DiskDriver_writeBlock(d->sfs->disk,d->dcb,d->dcb->fcb.block_in_disk);
@@ -277,7 +223,6 @@ printf("filename:%s\n", filename);
 		free(file);
 	}
   CHECK_ERR(res==FAILED,"can't write the updated FirstDirectoryBlock on disk");
-  printf("wrote dcb changes\n");
   //after creating the file we create a file handle
 	FileHandle *fh=(FileHandle*)malloc(sizeof(FileHandle));
   fh->current_block=&(file->header);
@@ -293,19 +238,19 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 
   char isDir[] = " ->is dir\n";
   char isFile[] = " ->is file\n";
-  
+
   int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
 
-  int dim_names = dir_entries*(128*sizeof(char))+1;
+  int dim_names = dir_entries*(FILENAME_MAX_LENGTH*sizeof(char))+1;
   *names = malloc(dim_names);
   memset(*names, 0, dim_names);
 
   if(dim_names==1) return SUCCESS;
-  
+
   FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
-  
+
   // We search for all the files in the current directory block
   for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
     // We get the file
@@ -321,7 +266,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 
   memset(*names+strlen(*names)-1, 0,1);
   free(file);
-  
+
   return SUCCESS;
 }
 
@@ -333,14 +278,14 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
   char workDir[] = ".";
   int res;
 
-  // Check if the directory where want to move is the current workdir 
+  // Check if the directory where want to move is the current workdir
   if(strncmp(workDir, dirname, strlen(dirname))==0) return SUCCESS;
 
   // Check if the directory where want to move is the parent directory
   if(strncmp(parent, dirname, strlen(dirname))==0){
     // Check if workdir is root dir
     if(d->directory==NULL) return FAILED;
-    
+
     // we populate the handle according to the readed block
     DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
     handle->sfs=d->sfs;
@@ -348,7 +293,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     handle->dcb=d->directory;
     handle->pos_in_dir=0;
     handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
-    
+
     // Check if directory have parent directory
     if(d->directory->fcb.directory_block!=MISSING){
       handle->directory = malloc(sizeof(FirstDirectoryBlock));
@@ -359,7 +304,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     handle->directory = NULL;
 
     free(d->dcb);
-    
+
     d->sfs = handle->sfs;
     d->current_block=handle->current_block;
     d->dcb=handle->dcb;
@@ -368,7 +313,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     d->directory=handle->directory;
 
     free(handle);
-    
+
     return SUCCESS;
   }
 
@@ -383,11 +328,11 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     memset(file, 0, sizeof(FirstDirectoryBlock));
     res=DiskDriver_readBlock(d->sfs->disk, file, d->dcb->file_blocks[i]);
     CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
-    
+
     //we check if the file has the same name of the file we want to create
     searching=strncmp(file->fcb.name, dirname, strlen(dirname));
   }
-  
+
   // If find the target directory then moving to it
   if(searching==0 && file->fcb.is_dir==DIRECTORY){
     // we populate the handle according to the readed block
@@ -402,23 +347,23 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     // Check if directory have parent directory
     if(file->fcb.directory_block!=MISSING){
       handle->directory = malloc(sizeof(FirstDirectoryBlock));
-      memset(handle->directory, 0, sizeof(FirstDirectoryBlock));  
+      memset(handle->directory, 0, sizeof(FirstDirectoryBlock));
       res=DiskDriver_readBlock(d->sfs->disk, handle->directory, file->fcb.directory_block);
       CHECK_ERR(res==FAILED,"Error read parent directory");
     }
     else handle->directory = NULL;
 
     free(d->dcb);
-    
+
     d->sfs = handle->sfs;
     d->current_block=handle->current_block;
     d->dcb=handle->dcb;
     d->pos_in_dir=handle->pos_in_dir;
     d->pos_in_block=handle->pos_in_block;
     d->directory=handle->directory;
-    
+
     free(handle);
-    
+
     return SUCCESS;
   }
 
@@ -458,15 +403,16 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname){
   }
 
   //we write the updates on FirstDirectoryBlock of parent
-  //d->dcb->num_entries+=1; TODO DUBBIO (se lo faccio poi ho problemi in readDir
+  d->dcb->num_entries+=1;
   d->dcb->file_blocks[d->dcb->num_entries-1] = rootblock;
-  
+
+
   int res;
   //writing the directory on disk
   res=DiskDriver_writeBlock(d->sfs->disk,(void*) root,rootblock);
   free(root);
   if(res==FAILED) return FAILED;
-  
+
   res=DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->fcb.block_in_disk);
   if(res==FAILED) return FAILED;
 
@@ -481,9 +427,9 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
   int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
-  
+
   if(dir_entries==0) return SUCCESS;
-  
+
   FirstDirectoryBlock* file=(FirstDirectoryBlock*) malloc(sizeof(FirstDirectoryBlock));
 
   // we search for all the files in the current directory block
@@ -492,14 +438,14 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
     memset(file, 0, sizeof(FirstDirectoryBlock));
     res=DiskDriver_readBlock(d->sfs->disk, file, d->dcb->file_blocks[i]);
     CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
-    
+
     //we check if the file has the same name of the file we want to create
     searching=strncmp(file->fcb.name, filename, strlen(filename));
   }
-  
+
   // Check if the target file is a directory
   if(searching==0 && file->fcb.is_dir==DIRECTORY){
-    
+
     DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
     memset(handle, 0, sizeof(DirectoryHandle));
     handle->sfs=d->sfs;
@@ -508,14 +454,13 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
     handle->directory = d->dcb;
     handle->pos_in_dir=0;
     handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
-    
+
     res=SimpleFS_remove(handle, filename);
     if(res==FAILED){
-      free(handle);
       free(file);
     }
     free(handle);
-    
+
     // Remove the files contained in the directory
     int i;
     for(i=0; i<file->num_entries; i++){
@@ -523,7 +468,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
       file->file_blocks[i]=MISSING;
     }
     file->num_entries-=i;
-    
+
     // Remove that the directory in the parent directory
     int j=0;
     for(i=0; i<d->dcb->num_entries; i++){
@@ -533,7 +478,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
       }
       else{
         // TODO Free all block occupied that directory
-        
+
         DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
         d->dcb->file_blocks[i]=MISSING;
       }
@@ -547,7 +492,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 
     return SUCCESS;
   }
-  
+
   // Check if the target file isn't a file
   if(searching==0 && file->fcb.is_dir==FILE){
     // Remove that file according to the entries
@@ -559,7 +504,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
       }
       else{
         // TODO Free all block occupied that file
-        
+
         DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
         d->dcb->file_blocks[i]=MISSING;
       }
@@ -573,6 +518,107 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 
     return SUCCESS;
   }
-  
+
   return FAILED;
+}
+
+SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
+
+	// we  will save our results and all our intermediate variables in here
+	SearchResult *result=(SearchResult*) malloc(sizeof(SearchResult));
+	result->result=FAILED;
+	result->dir_block_in_disk=MISSING;
+	result->element=NULL;
+	result->last_visited_dir_block=NULL;
+	result->type=MISSING;
+
+	//now we check if the file is already present in the given directory
+	int i,res;
+	//this variable is used to stop the search if we have already found a matching filename
+	int searching=1;
+
+
+	//we know how many entries has a directory but we don't know how many entries per block we have so we calculate it
+	int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
+	int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
+
+	// in here we will save the read FirstFileBlock/FirstDirectoryBlock to check if has a matching file name
+	void* element=malloc(sizeof(BLOCK_SIZE));
+	// we calculate the number of bytes necessary to reach the fcb
+	int fcb_displacement=sizeof(BlockHeader);
+	//we save the number of entries in the directory
+	int dir_entries=d->dcb->num_entries;
+
+	// we search for all the files in the current directory block
+	for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
+		memset(element,0,sizeof(BLOCK_SIZE));
+		//we get the file
+		res=DiskDriver_readBlock(d->sfs->disk,element,d->dcb->file_blocks[i]);
+		if(res==FAILED){
+			free(element);
+			free(result);
+			CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
+		}
+		//we check if the file has the same name of the file we want to create
+		searching=strncmp(((FileControlBlock*)(element+fcb_displacement))->name,name,strlen(name));
+	}
+	if(searching==0){
+		result->result=SUCCESS;
+		result->dir_block_in_disk=MISSING;
+		result->type=FILE;
+		result->last_visited_dir_block=NULL;
+		result->element=element;
+		return result;
+	}
+	//now we search in the other directory blocks which compose the directory list
+
+	int next_block=d->dcb->header.next_block;
+	int dir_block_in_disk;
+	//we save the block in disk of the current directory block for future use
+	dir_block_in_disk=d->dcb->fcb.block_in_disk;
+	//we adjust the number of remaining entries
+	dir_entries-=FDB_max_elements;
+	//we start the search in the rest of the chained list
+	while(next_block!=MISSING){
+		DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
+
+		//we get the next directory block;
+		dir_block_in_disk=next_block;
+		// we clean our directory before getting the new one
+		memset(dir,0,sizeof(DirectoryBlock));
+		res=DiskDriver_readBlock(d->sfs->disk,dir,next_block);
+
+		if(res==FAILED){
+			free(element);
+			free(dir);
+			free(result);
+			CHECK_ERR(res==FAILED,"the directory contains a free block in the entry chain");
+		}
+
+		//we search it
+		for(i=0;i<dir_entries && i<DB_max_elements && searching;i++){
+			//we get the file
+			res=DiskDriver_readBlock(d->sfs->disk,element,dir->file_blocks[i]);
+			if(res==FAILED){
+				free(element);
+				free(dir);
+				free(result);
+				CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
+			}
+
+			//we check if the file has the same name of the file we want to create
+			searching=strncmp(((FileControlBlock*)(element+fcb_displacement))->name,name,strlen(name));
+		}
+		if(searching==0){
+			result->type=FILE;
+			result->dir_block_in_disk=dir_block_in_disk;
+			result->element=element;
+			result->last_visited_dir_block=dir;
+			result->result=SUCCESS;
+		}
+		//now we need to change block and to adjust the number of remaining entries to check
+		dir_entries-=DB_max_elements;
+		next_block=dir->header.next_block;
+	}
+	return result;
 }

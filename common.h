@@ -24,3 +24,4 @@
 #define CONTROL_BLOCK 0
 #define DIRECTORY 1
 #define FILE 0
+#define FILENAME_MAX_LENGTH 128

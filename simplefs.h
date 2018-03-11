@@ -19,7 +19,7 @@ typedef struct {
 typedef struct {
   int directory_block; // first block of the parent directory
   int block_in_disk;   // repeated position of the block on the disk
-  char name[128];
+  char name[FILENAME_MAX_LENGTH];
   int size_in_bytes;
   int size_in_blocks;
   int is_dir;          // 0 for file, 1 for dir
@@ -101,6 +101,16 @@ typedef struct {
   int pos_in_block;                // relative position of the cursor in the block
 } DirectoryHandle;
 
+//result of a search operation in a given directory
+//the file or directory blocks, if missing are NULLs
+typedef struct{
+	int result; //SUCCESS or FAILED
+	int type; // 0->file 1->directory
+	int dir_block_in_disk; //block on disk containing the last visited directory block;
+	void* element; //the found element which will need to be casted according to the type of element
+	DirectoryBlock *last_visited_dir_block; //if we need to add block to this directory
+}SearchResult;
+
 // initializes a file system on an already made disk
 // returns a handle to the top level directory stored in the first block
 DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk);
@@ -153,3 +163,7 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname);
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
 int SimpleFS_remove(DirectoryHandle* d, char* filename);
+
+//searches for a file or a directory given a DirectoryHandle and the element name
+SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name);
+

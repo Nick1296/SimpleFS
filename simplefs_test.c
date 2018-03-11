@@ -215,6 +215,7 @@ void create_test(DirectoryHandle* dh){
 	printf("result: %p\n",fh);
 
 	//then we create files to test if the directory block are allocated successfully
+	printf("now we create a bunch of files\n");
   char name[4];
   for(i=0;i<9;i++){
     sprintf(name, "%d",i);
@@ -254,14 +255,14 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   FileHandle* fh=SimpleFS_createFile(dh,name);
   free(fh->fcb);
   free(fh);
-  readDir_test(dh,4); 
+  readDir_test(dh,4);
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   if(ret!=FAILED) readDir_test(dh,5);
-  
+
   bitmap_info(dh->sfs->disk);
-  
+
   printf("SimpleFS_changeDir ciao\n");
   ret=SimpleFS_changeDir(dh, "ciao");
   if(ret==FAILED) printf("Errore in changeDir ciao\n");
@@ -278,7 +279,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   ret=SimpleFS_remove(dh, "ciao");
   if(ret==FAILED) printf("Errore in remove ciao\n");
   if(ret!=FAILED) readDir_test(dh,9);
-  
+
   bitmap_info(dh->sfs->disk);
 }
 
@@ -298,8 +299,8 @@ int main(void) {
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
   create_test(dh);
   readDir_changeDir_mkDir_remove_test(dh);
-  
-  
+
+
   DiskDriver_shutdown(disk);
   free(disk);
   free(dh->dcb);
