@@ -190,7 +190,7 @@ void init_test(SimpleFS *fs){
   printf("pos in block: %d\n",dh->pos_in_block);
   printf("pos in dir: %d\n",dh->pos_in_dir);
 }
-void create_test(DirectoryHandle* dh){
+void createFile_openFile_closeFile_test(DirectoryHandle* dh){
   //firstly we create try to create two file with the same name to test if they are detected as files with the same name
 	printf("creating a file with 128 charaters name\n");
 	int i;
@@ -202,14 +202,12 @@ void create_test(DirectoryHandle* dh){
 	FileHandle* fh=SimpleFS_createFile(dh,fname);
 	printf("result: %p\n",fh);
 	//cleanup of the allocated memory
-	free(fh->fcb);
-	free(fh);
+	SimpleFS_close(fh);
 	printf("we create a file with name: test\n");
 	fh=SimpleFS_createFile(dh,"test");
 	printf("result: %p\n",fh);
 	//cleanup of the allocated memory
-	free(fh->fcb);
-	free(fh);
+	SimpleFS_close(fh);
   printf("creating a new file named test, for the 2nd time\n");
 	fh=SimpleFS_createFile(dh,"test");
 	printf("result: %p\n",fh);
@@ -222,9 +220,14 @@ void create_test(DirectoryHandle* dh){
     fh=SimpleFS_createFile(dh,name);
 		printf("result: %p\n",fh);
 		//cleanup of the allocated memory
-		free(fh->fcb);
-		free(fh);
+		SimpleFS_close(fh);
   }
+
+  fh=SimpleFS_openFile(dh,"test");
+	printf("opened file \"test\": %p\n",fh);
+	printf("closing the file named \"test\"...");
+	SimpleFS_close(fh);
+	printf("done\n");
 }
 
 void readDir_test(DirectoryHandle *dh, int i){
@@ -297,8 +300,8 @@ int main(void) {
   res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
-  create_test(dh);
-  readDir_changeDir_mkDir_remove_test(dh);
+  createFile_openFile_closeFile_test(dh);
+  //readDir_changeDir_mkDir_remove_test(dh);
 
 
   DiskDriver_shutdown(disk);

@@ -89,6 +89,7 @@ typedef struct {
   FirstFileBlock* fcb;             // pointer to the first block of the file(read it)
   FirstDirectoryBlock* directory;  // pointer to the directory where the file is stored
   BlockHeader* current_block;      // current block in the file
+  BlockHeader* current_index_block; // current block in the where the current block is saved
   int pos_in_file;                 // position of the cursor
 } FileHandle;
 
@@ -134,14 +135,14 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d);
 FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename);
 
 // closes a file handle (destroyes it)
-int SimpleFS_close(FileHandle* f);
+void SimpleFS_close(FileHandle* f);
 
 // writes in the file, at current position for size bytes stored in data
 // overwriting and allocating new space if necessary
 // returns the number of bytes written
 int SimpleFS_write(FileHandle* f, void* data, int size);
 
-// writes in the file, at current position size bytes stored in data
+// reads in the file, at current position size bytes stored in data
 // overwriting and allocating new space if necessary
 // returns the number of bytes read
 int SimpleFS_read(FileHandle* f, void* data, int size);
@@ -164,6 +165,6 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname);
 // if a directory, it removes recursively all contained files
 int SimpleFS_remove(DirectoryHandle* d, char* filename);
 
-//searches for a file or a directory given a DirectoryHandle and the element name
+// searches for a file or a directory given a DirectoryHandle and the element name
 SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name);
 

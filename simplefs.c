@@ -112,6 +112,13 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
   file->fcb.size_in_blocks=1;
   file->fcb.size_in_bytes=512;
 
+	//initializing the entries of the index cointained in the fcb
+	file->num_entries=0;
+	int i=0;
+	for(i=0;i<(int)((BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int));i++){
+		file->blocks[i]=MISSING;
+	}
+
   //we create the file on disk
   res=DiskDriver_writeBlock(d->sfs->disk,file,file_block);
   CHECK_ERR(res==FAILED,"can't write on the given free block");
@@ -225,8 +232,11 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
   CHECK_ERR(res==FAILED,"can't write the updated FirstDirectoryBlock on disk");
   //after creating the file we create a file handle
 	FileHandle *fh=(FileHandle*)malloc(sizeof(FileHandle));
-  fh->current_block=&(file->header);
-  fh->directory=d->dcb;
+  fh->current_block=NULL;
+	fh->current_index_block=NULL;
+	//we copy the FirstDirectoryBlock from the DirectoryHandle
+  fh->directory=(FirstDirectoryBlock*)malloc(sizeof(FirstDirectoryBlock));
+	memcpy(fh->directory,d->dcb,sizeof(FirstDirectoryBlock));
   fh->fcb=file;
   fh->pos_in_file=0;
   fh->sfs=d->sfs;
@@ -549,7 +559,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 
 	// we search for all the files in the current directory block
 	for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
-		memset(element,0,sizeof(BLOCK_SIZE));
+		memset(element,0,BLOCK_SIZE);
 		//we get the file
 		res=DiskDriver_readBlock(d->sfs->disk,element,d->dcb->file_blocks[i]);
 		if(res==FAILED){
@@ -619,4 +629,44 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 		next_block=dir->header.next_block;
 	}
 	return result;
+}
+
+FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
+	//firstly we need to search the file we want to open
+	SearchResult *search=SimpleFS_search(d,filename);
+	if(search->result==FAILED){
+		if(search->last_visited_dir_block!=NULL){
+			free(search->last_visited_dir_block);
+		}
+		free(search);
+		return NULL;
+	}
+	//we create our handle
+	FileHandle *file=(FileHandle*)malloc(sizeof(FileHandle));
+	file->fcb=(FirstFileBlock*)search->element;
+	file->pos_in_file=0;
+	file->sfs=d->sfs;
+	file->directory=(FirstDirectoryBlock*)malloc(sizeof(FirstDirectoryBlock));
+	memcpy(file->directory,d->dcb,sizeof(FirstDirectoryBlock));
+	file->current_block=NULL;
+	file->current_index_block=NULL;
+	return file;
+}
+
+void SimpleFS_close(FileHandle* f){
+
+	//we deallocate BlockHeader which indicates the current data block in the file
+	if(f->current_block!=NULL){
+		free(f->current_block);
+	}
+	//we deallocate the current BlockHeader of the index
+	if(f->current_index_block!=NULL){
+		free(f->current_index_block);
+	}
+	//we need to deallocate the FirstFileBlock
+	free(f->fcb);
+	//we deallocate the directory block in which the file is contained
+	free(f->directory);
+	//now we can deallocate the file handle
+	free(f);
 }
