@@ -231,13 +231,14 @@ void readDir_test(DirectoryHandle *dh, int i){
   int ret=SimpleFS_readDir(&list, dh);
   if(ret==FAILED) printf("Errore in readDir_test\n");
   printf("\nList directory %d:\n%s\n\n",i,list);
+  free(list);
 }
 
 void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   printf("\t\tSimpleFS_functions test\n");
   printf("SimpleFS_changeDir ..\n");
   int ret=SimpleFS_changeDir(dh, "..");
-  if(ret==FAILED) printf("Errore in mkDir_test1\n");
+  if(ret==FAILED) printf("Errore in changeDir ..\n");
   readDir_test(dh,1);
   printf("SimpleFS_mkDir ciao\n");
   ret=SimpleFS_mkDir(dh, "ciao");
@@ -250,7 +251,9 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   char name[4];
   sprintf(name, "%d",9);
   printf("SimpleFS_createFile 9\n");
-  SimpleFS_createFile(dh,name);
+  FileHandle* fh=SimpleFS_createFile(dh,name);
+  free(fh->fcb);
+  free(fh);
   readDir_test(dh,4); 
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");

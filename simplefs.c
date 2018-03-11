@@ -297,12 +297,15 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
   int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
+
+  int dim_names = dir_entries*(128*sizeof(char))+1;
+  *names = malloc(dim_names);
+  memset(*names, 0, dim_names);
+
+  if(dim_names==1) return SUCCESS;
   
   FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
-
-  *names = malloc(dir_entries*sizeof(char));
-  memset(*names, 0, strlen(*names));
-
+  
   // We search for all the files in the current directory block
   for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
     // We get the file
@@ -347,14 +350,16 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
     
     // Check if directory have parent directory
-    if(d->directory->fcb.block_in_disk!=MISSING){
+    if(d->directory->fcb.directory_block!=MISSING){
       handle->directory = malloc(sizeof(FirstDirectoryBlock));
       memset(handle->directory, 0, sizeof(FirstDirectoryBlock));
-      res=DiskDriver_readBlock(d->sfs->disk, handle->directory, d->directory->fcb.block_in_disk);
+      res=DiskDriver_readBlock(d->sfs->disk, handle->directory, d->directory->fcb.directory_block);
       CHECK_ERR(res==FAILED,"Error read parent directory");
     }
     handle->directory = NULL;
 
+    free(d->dcb);
+    
     d->sfs = handle->sfs;
     d->current_block=handle->current_block;
     d->dcb=handle->dcb;
@@ -403,6 +408,8 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     }
     else handle->directory = NULL;
 
+    free(d->dcb);
+    
     d->sfs = handle->sfs;
     d->current_block=handle->current_block;
     d->dcb=handle->dcb;
@@ -474,6 +481,9 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
   int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
+  
+  if(dir_entries==0) return SUCCESS;
+  
   FirstDirectoryBlock* file=(FirstDirectoryBlock*) malloc(sizeof(FirstDirectoryBlock));
 
   // we search for all the files in the current directory block
@@ -489,14 +499,31 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
   
   // Check if the target file is a directory
   if(searching==0 && file->fcb.is_dir==DIRECTORY){
+    
+    DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
+    memset(handle, 0, sizeof(DirectoryHandle));
+    handle->sfs=d->sfs;
+    handle->current_block=&(file->header);
+    handle->dcb=file;
+    handle->directory = d->dcb;
+    handle->pos_in_dir=0;
+    handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+    
+    res=SimpleFS_remove(handle, filename);
+    if(res==FAILED){
+      free(handle);
+      free(file);
+    }
+    free(handle);
+    
     // Remove the files contained in the directory
     int i;
     for(i=0; i<file->num_entries; i++){
-      DiskDriver_freeBlock(d->sfs->disk ,file->file_blocks[i]);
+      DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
       file->file_blocks[i]=MISSING;
     }
     file->num_entries-=i;
-
+    
     // Remove that the directory in the parent directory
     int j=0;
     for(i=0; i<d->dcb->num_entries; i++){
@@ -505,10 +532,13 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
         j++;
       }
       else{
+        // TODO Free all block occupied that directory
+        
         DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
         d->dcb->file_blocks[i]=MISSING;
       }
     }
+    free(file);
     d->dcb->num_entries=j;
 
     // We write the updated FirstDirectoryBlock
@@ -528,10 +558,13 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
         j++;
       }
       else{
+        // TODO Free all block occupied that file
+        
         DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
         d->dcb->file_blocks[i]=MISSING;
       }
     }
+    free(file);
     d->dcb->num_entries=j;
 
     // We write the updated FirstDirectoryBlock
