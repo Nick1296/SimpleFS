@@ -23,8 +23,8 @@ all:	$(BINS)
 simplefs_test: $(OBJS)
 		$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 
-gdb:
-	gdb ./simplefs_test
+valgrind:
+	valgrind ./simplefs_test
 
 clean:
 	rm -rf *.o *~  $(BINS)

@@ -543,9 +543,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 	int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 
 	// in here we will save the read FirstFileBlock/FirstDirectoryBlock to check if has a matching file name
-	void* element=malloc(sizeof(BLOCK_SIZE));
-	// we calculate the number of bytes necessary to reach the fcb
-	int fcb_displacement=sizeof(BlockHeader);
+	void* element=malloc(BLOCK_SIZE);
 	//we save the number of entries in the directory
 	int dir_entries=d->dcb->num_entries;
 
@@ -560,7 +558,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 			CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
 		}
 		//we check if the file has the same name of the file we want to create
-		searching=strncmp(((FileControlBlock*)(element+fcb_displacement))->name,name,strlen(name));
+		searching=strncmp(((FileControlBlock*)(element+sizeof(BlockHeader)))->name,name,strlen(name));
 	}
 	if(searching==0){
 		result->result=SUCCESS;
@@ -607,7 +605,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 			}
 
 			//we check if the file has the same name of the file we want to create
-			searching=strncmp(((FileControlBlock*)(element+fcb_displacement))->name,name,strlen(name));
+			searching=strncmp(((FileControlBlock*)(element+sizeof(BlockHeader)))->name,name,strlen(name));
 		}
 		if(searching==0){
 			result->type=FILE;
