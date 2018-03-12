@@ -247,19 +247,26 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 // reads in the (preallocated) blocks array, the name of all files in a directory
 int SimpleFS_readDir(char** names, DirectoryHandle* d){
 
-  char isDir[] = " ->is dir\n";
-  char isFile[] = " ->is file\n";
+  char isDir[] = " ->is dir\n   ";
+  char isFile[] = " ->is file\n   ";
+  char newLine[] = "\n   ";
+  char str[] = "directory empty\n";
 
   int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
 
-  int dim_names = dir_entries*(FILENAME_MAX_LENGTH*sizeof(char))+1;
+  int dim_names = (dir_entries+1)*(FILENAME_MAX_LENGTH*sizeof(char));
   *names = malloc(dim_names);
   memset(*names, 0, dim_names);
 
-  if(dim_names==1) return SUCCESS;
+  strncpy(*names, d->dcb->fcb.name, strlen(d->dcb->fcb.name));
+  strcat(*names, newLine);
 
+  if(dim_names==1*FILENAME_MAX_LENGTH*sizeof(char)){ 
+    strcat(*names, str);
+    return SUCCESS;
+  }
   FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
 
   // We search for all the files in the current directory block
@@ -284,7 +291,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
 // 0 on success, negative value on error
 // it does side effect on the provided handle
- int SimpleFS_changeDir(DirectoryHandle* d, char* dirname){
+int SimpleFS_changeDir(DirectoryHandle* d, char* dirname){
   // Check if passed parameters are valid
   if(d == NULL || strlen(dirname)==0) return FAILED;
 
@@ -315,8 +322,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
       memset(handle->directory, 0, sizeof(FirstDirectoryBlock));
       res=DiskDriver_readBlock(d->sfs->disk, handle->directory, d->directory->fcb.directory_block);
       CHECK_ERR(res==FAILED,"Error read parent directory");
-    }
-    handle->directory = NULL;
+    } else handle->directory = NULL;
 
     free(d->dcb);
 
@@ -440,6 +446,96 @@ int SimpleFS_mkDir(DirectoryHandle* d, char* dirname){
   return SUCCESS;
 }
 
+// Removes files and directories recursively
+int SimpleFS_remove_rec(DirectoryHandle* d){
+   // Check if passed parameters are valid
+  if(d == NULL) return FAILED;
+
+  int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
+  int dir_entries=d->dcb->num_entries;
+  int searching=1, i, res;
+
+  if(dir_entries==0) return SUCCESS;
+
+  FirstDirectoryBlock* file=(FirstDirectoryBlock*) malloc(sizeof(FirstDirectoryBlock));
+
+  // we search for all the files in the current directory block
+  for(i=0;i<dir_entries && i<FDB_max_elements && searching;i++){
+    //we get the file
+    memset(file, 0, sizeof(FirstDirectoryBlock));
+    res=DiskDriver_readBlock(d->sfs->disk, file, d->dcb->file_blocks[i]);
+    CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
+
+    // Check if the target file is a directory
+    if(file->fcb.is_dir==DIRECTORY){
+      // We populate the handle according to the content informations
+      DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
+      memset(handle, 0, sizeof(DirectoryHandle));
+      handle->sfs=d->sfs;
+      handle->current_block=&(file->header);
+      handle->dcb=file;
+      handle->directory = d->dcb;
+      handle->pos_in_dir=0;
+      handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+      res=SimpleFS_remove_rec(handle);
+      if(res==FAILED){
+        free(file);
+        free(handle);
+        return FAILED;
+      }
+      free(handle);
+    }
+    // Remove the files contained in the directory
+    int i;
+    for(i=0; i<file->num_entries; i++){
+      // TODO Free all block occupied that file
+      DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
+      file->file_blocks[i]=MISSING;
+    }
+    file->num_entries-=i;
+
+    // Remove that the directory in the parent directory
+    int j=0;
+    for(i=0; i<d->dcb->num_entries; i++){
+      if(d->dcb->file_blocks[i]!=file->fcb.block_in_disk){
+        d->dcb->file_blocks[j]=d->dcb->file_blocks[i];
+        j++;
+      }
+      else{
+        // Free all block occupied that directory
+        // TODO CHECK IF IS CORRECT!
+        if(file->header.block_in_file==CONTROL_BLOCK){
+          int res, block = file->header.next_block;
+          DirectoryBlock* app = malloc(sizeof(DirectoryBlock));
+          while(block!=MISSING){
+            memset(app, 0, sizeof(DirectoryBlock));
+            res=DiskDriver_readBlock(d->sfs->disk, (void*)app, block);
+            if(res==FAILED) return FAILED;
+            res=DiskDriver_freeBlock(d->sfs->disk, block);
+            if(res==FAILED) return FAILED;
+            block = app->header.next_block;
+          }
+          free(app);
+        }
+
+        DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
+        d->dcb->file_blocks[i]=MISSING;
+      }
+    }
+    free(file);
+
+    // Update num entry of directory
+    d->dcb->num_entries=j;
+
+    // We write the updated FirstDirectoryBlock
+    res=DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->fcb.block_in_disk);
+    if(res==FAILED) return FAILED;
+
+    return SUCCESS;
+  }
+  return FAILED;
+}
+
 // removes the file in the current directory
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
@@ -478,15 +574,18 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
     handle->pos_in_dir=0;
     handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
 
-    res=SimpleFS_remove(handle, filename);
+    res=SimpleFS_remove_rec(handle);
     if(res==FAILED){
       free(file);
+      free(handle);
+      return FAILED;
     }
     free(handle);
 
     // Remove the files contained in the directory
     int i;
     for(i=0; i<file->num_entries; i++){
+      // TODO Free all block occupied that file
       DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
       file->file_blocks[i]=MISSING;
     }
@@ -558,7 +657,7 @@ int SimpleFS_remove(DirectoryHandle* d, char* filename){
 
     return SUCCESS;
   }
-
+  
   return FAILED;
 }
 
