@@ -8,59 +8,68 @@
 //leggo nome
 //con scanf
 //directory handle directory attuale
-/// str took dove va a finire il file
-//str took con /
+/// strtok dove va a finire il file
+//strtok con /
 
 //numero blocchi  //scanf
 //nome file
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "../simplefs.h"
+
+int shell_init(SimpleFS* fs){
+
+    fs->filename=(char*)malloc(sizeof(char)*FILENAME_MAX_LENGTH);
+    printf("inserisci il nome del file su disco:\n->");
+    CHECK_ERR(fgets(fs->filename,FILENAME_MAX_LENGTH,stdin)==NULL,"can't read input filename");
+    int res;
+    char format
+    res=DiskDriver_load(fs->disk,fs->filename);
+    if(res==FAILED){
+        printf("file non presente o filesystem non riconosiuto, formattare il file? (s,n)\n->");
+        scanf("%c",&format);
+        if(format!="s"){
+            return FAILED;
+        }
+        printf("inserisci il numero di blocchi del \"disco\"\n");
+        scanf_s("%d",fs->num_blocks);
+        SimpleFS_format(fs);
+    }
+    return SUCCESS;
+
+}
+
+void parse_command(char* command,char token,char** tok_buf,int* tok_num){
+
+}
 
 int main(){
     //dichiarazione varibili utili
-    int num_blocks;
-    const char filename[128];
-    DiskDriver* disk;
-    int control,decisione;
+    int res;
+    //questa variabile indica la funzione attualmente selezionata dall'utente
+    int control=1;
     SimpleFS* fs=(SimpleFS*)malloc(sizeof(SimpleFS));
     DirectoryHandle* dh;
-    //inserimento parametri
-    printf("inserire numero di blocchi: ");
-	scanf("%d", num_blocks);
+    //caricamento/inizializzazione del disco
+    res=shell_init(fs);
+    CHECK_ERR(res==FAILED,"can't initialize the disk");
+    dh=SimpleFS_init(fs,fs->disk);
+    CHECK_ERR(dh==NULL,"can't initialize the disk");
+    //comando inserito dall'utente
+    char command[1024];
+    char **tok_buf;
+    int tok_num;
 
-    printf("inserire nome file: ");
-	scanf("%s",filename);
+    while(c){
+        //lettura dei comandi da tastiera
+        CHECK_ERR(fgets(command,1024,stdin)==NULL,"can't read command from input");
+        control=parse_command(command,' ',tok_buf,&tok_num);
+        switch(control){
 
-
-    //#define FAILED -1
-    //#define SUCCESS 0
-
-    //typedef struct {
-    //DiskDriver* disk;
-    //int block_num;
-    //char* filename;
-    //} SimpleFS;
-    control=DiskDriver_load(disk,filename,num_blocks);
-    if(control==-1){
-        printf("errore nel caricamento del diskDriver\n");
-        //devo chiedere se vuole formattare il disco
-        printf("si vuole resettare il disco?(in serire 1 per 'Si' , 0 per 'No'): ");
-	    scanf("%d", &decisione);
-        if(decisione==1){
-            //inserisco i campi nel mio fs
-            fs->block_num=num_blocks;
-            fs->filename=filename;
-            SimpleFS_format(fs);
-            //init puo restituire : se va tutto bene-->directoryhandle oppure null se succedono cose brutte
-            //DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk);
-            dh=SimpleFS_init(fs,disk);
         }
-        else{
-            //0 o altri simboli
-            printf("Terminazione in corso\n")
-            return 0;// si schianta
-        }
+    }
+
     }
     //una volta uscito da questo if avremo tutto allocato -->ho gia root in memoria
     //ora aspetto l'utente che vuole fare?

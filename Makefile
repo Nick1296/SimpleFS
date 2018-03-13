@@ -24,7 +24,7 @@ simplefs_test: $(OBJS)
 		$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 
 valgrind:
-	valgrind ./simplefs_test
+	valgrind --leak-check=full ./simplefs_test
 
 clean:
 	rm -rf *.o *~  $(BINS)

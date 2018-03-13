@@ -48,7 +48,7 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
 }
 
 //assuming that the file is already initialized loads the disk
-int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
+int DiskDriver_load(DiskDriver* disk, const char* filename){
   int res,fd; //1= file already exists 0=file doesn't exists yet
   //checking if the file exists or if we need to format the drive
   res=access(filename,F_OK);
@@ -63,11 +63,18 @@ int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks){
   //checking if the open was successful
   CHECK_ERR(fd==FAILED,"error opening the file");
 
+  //reading the first block of the disk
+  void* block=malloc(BLOCK_SIZE);
+  res=DiskDriver_readBlock(disk,block,0);
+  CHECK_ERR(res==FAILED,"CAN't read the first block of disk");
+
   //calculating the bitmap size (rounded up)
-  int bitmap_blocks=(num_blocks+7)/8;
+  int bitmap_blocks=(((DiskHeader*)block)->num_blocks+7)/8;
   //rounded up block occupation of DiskHeader and bitmap
   int occupation=(sizeof(DiskHeader)+bitmap_blocks+sizeof(BitMap)+BLOCK_SIZE-1)/BLOCK_SIZE;
 
+  //now we can dealloate the read block
+  free(block);
   //mmap the file
   void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
   CHECK_ERR(map==MAP_FAILED && errno!=SIGBUS,"error mapping the file");

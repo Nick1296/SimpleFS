@@ -139,7 +139,7 @@ void diskdriver_test(DiskDriver* disk){
   DiskDriver_shutdown(disk);
   printf("\t\t Testing disk_load:\n");
   //now let's retest all the functions with an existing file
-  DiskDriver_load(disk,"disk",10);
+  DiskDriver_load(disk,"disk");
   driver_test(disk, 1);
   //bitmap_test(&disk);
   printf("disk drive shutdown...");
@@ -152,7 +152,7 @@ void format_test(SimpleFS* fs){
   SimpleFS_format(fs);
   driver_test(fs->disk, 0);
   DiskDriver_shutdown(fs->disk);
-  DiskDriver_load(fs->disk,fs->filename,10);
+  DiskDriver_load(fs->disk,fs->filename);
   driver_test(fs->disk, 1);
   DiskDriver_shutdown(fs->disk);
 }
@@ -162,7 +162,7 @@ void init_test(SimpleFS *fs){
   int res;
   printf("\t\t Testing SimpleFS_init:\n");
   SimpleFS_format(fs);
-  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
+  res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,fs->disk);
   printf("now we print the directory handle\n");
@@ -335,7 +335,7 @@ int main(void) {
   fs->disk=disk;
 
   SimpleFS_format(fs);
-  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
+  res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
   createFile_openFile_closeFile_test(dh);
