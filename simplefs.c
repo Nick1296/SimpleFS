@@ -291,20 +291,17 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
 // 0 on success, negative value on error
 // it does side effect on the provided handle
-int SimpleFS_changeDir(DirectoryHandle* d, char* dirname){
+int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
   // Check if passed parameters are valid
   if(d == NULL || strlen(dirname)==0) return FAILED;
 
-  // Strings with specific meaning
-  const char parent[] = "..";
-  const char workDir[] = ".";
   int res;
 
   // Check if the directory where want to move is the current workdir
-  if(strncmp(workDir, dirname, strlen(dirname))==0) return SUCCESS;
+  if(strncmp(".", dirname, strlen(dirname))==0) return SUCCESS;
 
   // Check if the directory where want to move is the parent directory
-  if(strncmp(parent, dirname, strlen(dirname))==0){
+  if(strncmp("..", dirname, strlen(dirname))==0){
     // Check if workdir is root dir
     if(d->directory==NULL) return SUCCESS;
 
@@ -384,7 +381,7 @@ int SimpleFS_changeDir(DirectoryHandle* d, char* dirname){
 
 // creates a new directory in the current one (stored in fs->current_directory_block)
 // 0 on success -1 on error
-int SimpleFS_mkDir(DirectoryHandle* d, char* dirname){
+int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
    // Check if passed parameters are valid
   if(d == NULL || strlen(dirname)==0) return FAILED;
 
@@ -539,7 +536,7 @@ int SimpleFS_remove_rec(DirectoryHandle* d){
 // removes the file in the current directory
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
-int SimpleFS_remove(DirectoryHandle* d, char* filename){
+int SimpleFS_remove(DirectoryHandle* d, const char* filename){
    // Check if passed parameters are valid
   if(d == NULL || strlen(filename)==0) return FAILED;
 

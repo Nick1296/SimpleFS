@@ -47,6 +47,35 @@ void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks){
   disk->fd=fd;
 }
 
+// Reads the first block of the disk file
+// returns -1 if the block is free according to the bitmap
+// 0 otherwise
+int DiskDriver_readFirstBlock(DiskDriver* disk, void* dest, int block_num){
+  // Check if the parameters passed are valid
+  if(disk==NULL) return FAILED;
+  if(dest==NULL) return FAILED;
+  if(block_num<0) return FAILED;
+
+  // Set the position to read from
+  int res;
+  res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+  if(res==-1) return FAILED;
+
+  //now we read something so the file will actually have this dimension
+  res=read(disk->fd, dest, BLOCK_SIZE);
+
+  // If the read was interrupted by an interrupt, then reading again
+  while(res==-1 && errno == EINTR){
+    res=lseek(disk->fd, block_num*BLOCK_SIZE, SEEK_SET);
+    if(res==-1) return FAILED;
+    res=read(disk->fd ,dest, BLOCK_SIZE);
+  }
+
+  if(res!=BLOCK_SIZE) return FAILED;
+
+  return SUCCESS;
+}
+
 //assuming that the file is already initialized loads the disk
 int DiskDriver_load(DiskDriver* disk, const char* filename){
   int res,fd; //1= file already exists 0=file doesn't exists yet
@@ -63,9 +92,12 @@ int DiskDriver_load(DiskDriver* disk, const char* filename){
   //checking if the open was successful
   CHECK_ERR(fd==FAILED,"error opening the file");
 
+  // Copio fd del file disco nella struttura
+  disk->fd=fd;
+
   //reading the first block of the disk
   void* block=malloc(BLOCK_SIZE);
-  res=DiskDriver_readBlock(disk,block,0);
+  res=DiskDriver_readFirstBlock(disk, block, 0);
   CHECK_ERR(res==FAILED,"CAN't read the first block of disk");
 
   //calculating the bitmap size (rounded up)
@@ -78,6 +110,7 @@ int DiskDriver_load(DiskDriver* disk, const char* filename){
   //mmap the file
   void* map=mmap(0,occupation*BLOCK_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED,fd,0);
   CHECK_ERR(map==MAP_FAILED && errno!=SIGBUS,"error mapping the file");
+
   if(map==MAP_FAILED){
     return FAILED;
   }
@@ -85,7 +118,6 @@ int DiskDriver_load(DiskDriver* disk, const char* filename){
   //populating the disk driver
   disk->header=(DiskHeader*)map;
   disk->bmap=(BitMap*)(map+sizeof(DiskHeader));
-  disk->fd=fd;
 
   return SUCCESS;
 }
