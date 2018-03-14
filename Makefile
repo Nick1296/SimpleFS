@@ -30,7 +30,7 @@ valgrind:
 shell: $(OGAB)
 	$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 clean:
-	rm -rf *.o *~  $(BINS)
+	rm -rf *.o *~  $(BINS) shell
 
 test:
 	./simplefs_test

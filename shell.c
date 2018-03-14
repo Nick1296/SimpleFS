@@ -4,6 +4,7 @@
 
 #define MAX_COMMAND_SIZE 1024
 #define MAX_NUM_TOK  64
+#define MAX_NUM_COMMAND 512
 #define QUIT 0
 #define AGAIN 1
 
@@ -11,7 +12,7 @@ int shell_init(SimpleFS* fs){
     // chiedo il nome del file che memorizza il disco
     char* nameFile=(char*)malloc(sizeof(char)*FILENAME_MAX_LENGTH);
     memset(nameFile, 0,FILENAME_MAX_LENGTH);
-    //printf("inserisci il nome del file su disco -> ");
+    printf("inserisci il nome del file su disco -> ");
     //CHECK_ERR(fgets(nameFile,FILENAME_MAX_LENGTH,stdin)==NULL,"can't read input filename");
     nameFile[0]='d';
     nameFile[1]='i';
@@ -72,78 +73,74 @@ void parse_command(char* command, char* Mytoken,
     }
 }
 
-int make_argv(char* argv[MAX_NUM_TOK+1],
+void make_argv(char* argv[MAX_NUM_COMMAND],
 			   char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE],
 			   int tok_num) {
-
-
-//variabili utili
-    int i=0;
-    int c;
-    char* temp;
-    const char flag='/';
-    int stop;
-    char* posizione;
-    int return_value;
-    char* appoggio;
-    //scorro tutte le righe di comandoin tok_buf
-    for(c=0;c<tok_num;c++){
-        stop=0;
-        i=0;
-        // mi prendo la stringa c-esima e la metto in temp
-        temp=tok_buf[c];
-        //strcat(temp," ");//aggiungiamo uno spazio cosi non ignora l'ultimo pezzo
-
-        if(strchr(temp, flag)!=NULL){ //se c'è la prima '/' in temp
-            temp=strchr(temp, flag)+1; //ho la stringa di comando effettiva
-            return_value=return_value+1;
-            while(stop!=1){
-                posizione=strchr(temp, ' ');//posizione primo spazio
-                if (posizione==NULL){
-                    argv[i]=temp;
-                    stop=1;
-                }
-                else{
-
-                    argv[i]=temp;
-                    temp=posizione+1;//aggiorno temp saltando lo spazio
-                    i=i+1;
-                }
+    int i, j=0;
+    char* app;
+    char* now;
+    char* suc;
+    char* buffer;
+    memset(argv, 0, MAX_NUM_TOK+1);
+    for(i=0; i<tok_num; i++){
+        now = tok_buf[i];
+        now=strcat(now," ");
+        if(strchr(now, '/')!=NULL){
+            app=strchr(now, '/')+1;
+            suc=strchr(app, ' ');
+            while(suc!=NULL){
+                buffer = (char*)malloc((suc-app)*sizeof(char));
+                //memset(buffer, 0, suc-app);
+                memcpy(buffer, app, suc-app);
+                buffer[suc-app]='\0';
+                argv[j]=buffer;
+                j++;
+                app=suc+1;
+                suc=strchr(app, ' ');
             }
+            argv[j]=NULL;
         }
-        //se non c'è '/' o non c'è scritto nulla --> comando ignorato
     }
-    return return_value;
+    i=0;
+    while(argv[i]!=NULL){
+        printf("argv[%d] = %s\n", i, argv[i]);
+        i++;
+    }
+    
 }
 
 int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE], int tok_num){
     int i, j, res;
-    char* argv[MAX_NUM_TOK+1];
+    char* argv[MAX_NUM_COMMAND];
     memset(argv, 0, MAX_NUM_TOK+1);
+    make_argv(argv, tok_buf, tok_num);
     for(i=0; i<tok_num; i++){
-        make_argv(argv, tok_buf, tok_num);
-        for(j=0; argv[j]!=NULL; j++){
-            if(strcmp(argv[j], "quit") == 0) return QUIT;
-            if(strcmp(argv[j], "ls")==0){
-                char* names;
-                res=SimpleFS_readDir(&names, dh);
-                if(res!=FAILED) printf("%s\n", names);
-                else printf("Errore nell'esecuzione di ls\n");
-                return AGAIN;
-            }
-            if(strcmp(argv[j], "cd")==0){
-                // TODO call SimpleFS_changeDir
+        if(argv[i]!=NULL && strcmp(argv[i], "quit") == 0) return QUIT;
+        if(argv[i]!=NULL && strcmp(argv[i], "ls")==0){
+            char* names;
+            res=SimpleFS_readDir(&names, dh);
+            if(res!=FAILED) printf("%s\n", names);
+            else printf("Errore nell'esecuzione di ls\n");
+            return AGAIN;
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "cd")==0){
+            for(j=i+1; argv[j]!=NULL; j++){
+                res=SimpleFS_changeDir(dh, argv[j]);
                 if(res==FAILED) printf("Errore nell'esecuzione di cd\n");
-                return AGAIN;
             }
-            if(strcmp(argv[j], "mkdir")==0){
-                // TODO call SimpleFS_mkdir
+            return AGAIN;
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "mkdir")==0){
+printf("riconociuto mkdir\n");
+            for(j=i+1; argv[j]!=NULL; j++){
+                // TODO Va in errore quando tenta di farlo
+                res=SimpleFS_mkDir(dh, argv[j]);
                 if(res==FAILED) printf("Errore nell'esecuzione di mkdir\n");
-                return AGAIN;
             }
+            return AGAIN;
         }
     }
-    return 1;
+    return AGAIN;
 }
 
 int main(int arg, char** args){
@@ -164,7 +161,6 @@ int main(int arg, char** args){
     char command[1024];
     char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE];
     int tok_num=0;
-    //char token[] = "\n";
 
     printf("\n\tI comandi di questa shell inziano per '/', esempio /ls, /cd, /mkdir, ecc.\n\n");
 
@@ -173,19 +169,40 @@ int main(int arg, char** args){
 
         //lettura dei comandi da tastiera
         CHECK_ERR(fgets(command,MAX_COMMAND_SIZE,stdin)==NULL,"can't read command from input");
-        /*command[0]='l';
-        command[1]='s';
-        command[2]='\n';*/
-        parse_command(command,"; ",tok_buf,&tok_num);
+        // Per un esezione senza input
+        /*command[0]='/';
+        command[1]='m';
+        command[2]='k';
+        command[3]='d';
+        command[4]='i';
+        command[5]='r';
+        command[6]=' ';
+        command[7]='c';
+        command[8]='i';
+        command[9]='a';
+        command[10]='o';
+        command[11]='\n';*/
+        /*command[0]='/';
+        command[1]='c';
+        command[2]='d';
+        command[3]=' ';
+        command[4]='c';
+        command[5]='i';
+        command[6]='a';
+        command[7]='o';
+        command[8]='\n';*/
+        parse_command(command,"\n",tok_buf,&tok_num);
 
         // tok_num nullo allora ricomincio
-        if(tok_num<=0) continue;
+        //if(tok_num<=0) continue;
 
         // Chiamo do_cmd che esegue i comandi
         control=do_cmd(fs, dh, tok_buf, tok_num);
 
         memset(command, 0, MAX_COMMAND_SIZE);
-        memset(tok_buf, 0, MAX_NUM_TOK);
+        //memset(tok_buf, 0, MAX_NUM_TOK);
     }
+    free(fs);
+    free(dh);
     return 0;
 }
