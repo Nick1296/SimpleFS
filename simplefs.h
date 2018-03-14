@@ -155,15 +155,15 @@ int SimpleFS_seek(FileHandle* f, int pos);
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
 // 0 on success, negative value on error
 // it does side effect on the provided handle
- int SimpleFS_changeDir(DirectoryHandle* d, char* dirname);
+ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname);
 
 // creates a new directory in the current one (stored in fs->current_directory_block)
 // 0 on success -1 on error
-int SimpleFS_mkDir(DirectoryHandle* d, char* dirname);
+int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname);
 
 // removes the file in the current directory
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
-int SimpleFS_remove(DirectoryHandle* d, char* filename);
+int SimpleFS_remove(DirectoryHandle* d, const char* filename);
 
 

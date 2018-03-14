@@ -32,7 +32,7 @@ typedef struct {
 void DiskDriver_init(DiskDriver* disk, const char* filename, int num_blocks);
 
 //loads an already initialized disk
-int DiskDriver_load(DiskDriver* disk, const char* filename, int num_blocks);
+int DiskDriver_load(DiskDriver* disk, const char* filename);
 
 // reads the block in position block_num
 // returns -1 if the block is free according to the bitmap

@@ -139,7 +139,7 @@ void diskdriver_test(DiskDriver* disk){
   DiskDriver_shutdown(disk);
   printf("\t\t Testing disk_load:\n");
   //now let's retest all the functions with an existing file
-  DiskDriver_load(disk,"disk",10);
+  DiskDriver_load(disk,"disk");
   driver_test(disk, 1);
   //bitmap_test(&disk);
   printf("disk drive shutdown...");
@@ -152,7 +152,7 @@ void format_test(SimpleFS* fs){
   SimpleFS_format(fs);
   driver_test(fs->disk, 0);
   DiskDriver_shutdown(fs->disk);
-  DiskDriver_load(fs->disk,fs->filename,10);
+  DiskDriver_load(fs->disk,fs->filename);
   driver_test(fs->disk, 1);
   DiskDriver_shutdown(fs->disk);
 }
@@ -162,7 +162,7 @@ void init_test(SimpleFS *fs){
   int res;
   printf("\t\t Testing SimpleFS_init:\n");
   SimpleFS_format(fs);
-  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
+  res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,fs->disk);
   printf("now we print the directory handle\n");
@@ -283,6 +283,44 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   if(ret==FAILED) printf("Errore in remove ciao\n");
   if(ret!=FAILED) readDir_test(dh,9);
 
+  printf("SimpleFS_mkDir ciao\n");
+  ret=SimpleFS_mkDir(dh, "ciao");
+  if(ret==FAILED) printf("Errore in mkDir_test2\n");
+  printf("SimpleFS_changeDir ciao\n");
+  ret=SimpleFS_changeDir(dh, "ciao");
+  if(ret==FAILED) printf("Errore in changeDir ciao\n");
+  printf("SimpleFS_mkDir sotto ciao\n");
+  ret=SimpleFS_mkDir(dh, "sotto ciao");
+  sprintf(name, "%d",9);
+  printf("SimpleFS_createFile 9\n");
+  fh=SimpleFS_createFile(dh,name);
+  free(fh->fcb);
+  free(fh);
+  readDir_test(dh,12);
+  printf("SimpleFS_changeDir sotto ciao\n");
+  ret=SimpleFS_changeDir(dh, "sotto ciao");
+  sprintf(name, "%d",10);
+  printf("SimpleFS_createFile 10\n");
+  fh=SimpleFS_createFile(dh,name);
+  free(fh->fcb);
+  free(fh);
+  if(ret!=FAILED) readDir_test(dh,13);
+  printf("SimpleFS_changeDir ..\n");
+  ret=SimpleFS_changeDir(dh, "..");
+  if(ret==FAILED) printf("Errore in changeDir ..\n");
+  if(ret!=FAILED) readDir_test(dh,14);
+  printf("SimpleFS_changeDir ..\n");
+  ret=SimpleFS_changeDir(dh, "..");
+  if(ret==FAILED) printf("Errore in changeDir ..\n");
+  if(ret!=FAILED) readDir_test(dh,15);
+
+  bitmap_info(dh->sfs->disk);
+
+  printf("SimpleFS_remove ciao\n");
+  ret=SimpleFS_remove(dh, "ciao");
+  if(ret==FAILED) printf("Errore in remove ciao\n");
+  if(ret!=FAILED) readDir_test(dh,16);
+
   bitmap_info(dh->sfs->disk);
 }
 
@@ -297,11 +335,11 @@ int main(void) {
   fs->disk=disk;
 
   SimpleFS_format(fs);
-  res=DiskDriver_load(fs->disk,fs->filename,fs->block_num);
+  res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
   createFile_openFile_closeFile_test(dh);
-  //readDir_changeDir_mkDir_remove_test(dh);
+  readDir_changeDir_mkDir_remove_test(dh);
 
 
   DiskDriver_shutdown(disk);
