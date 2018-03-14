@@ -195,7 +195,8 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 		free(search);
 		return NULL;
 	}
-
+	//we can deallocate the SearchResult because it isn't needed anymore
+	free(search);
   FirstFileBlock* file=(FirstFileBlock*) malloc(sizeof(FirstFileBlock));
   //we get a free block from the disk
   int file_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
@@ -450,7 +451,7 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
     handle->sfs=d->sfs;
     handle->dcb=file;
     handle->pos_in_dir=0;
-    handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+    handle->pos_in_block=0;
 
     // Check if directory have parent directory
     if(file->fcb.directory_block!=MISSING){
@@ -462,6 +463,9 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
     else handle->directory = NULL;
 
     free(d->dcb);
+		if(d->directory!=NULL){
+			free(d->directory);
+		}
 
     // Copy the calculated information
     d->sfs = handle->sfs;
