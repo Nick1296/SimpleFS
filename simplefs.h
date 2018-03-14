@@ -25,19 +25,11 @@ typedef struct {
   int is_dir;          // 0 for file, 1 for dir
 } FileControlBlock;
 
+/******************* stuff on disk BEGIN *******************/
 // this is the first physical block of a file
 // it has a header
 // an FCB storing file infos
-// and can contain some data
-
-//TODO this structure must be eliminated
-typedef struct{
-  int block_in_disk;
-  int nextIndex;
-  int previousIndex;
-} Index;
-
-/******************* stuff on disk BEGIN *******************/
+// and can contain some indexes
 typedef struct {
   BlockHeader header;
   FileControlBlock fcb;
@@ -46,13 +38,12 @@ typedef struct {
   int blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)] ;
 } FirstFileBlock;
 
-
 typedef struct{
   int nextIndex;
 	int block_in_disk;
   int previousIndex;
   int indexes[(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int)];
-} IndexBlock;
+} Index;
 
 // this is one of the next physical blocks of a file
 typedef struct {
