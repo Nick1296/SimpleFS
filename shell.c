@@ -13,12 +13,12 @@ int shell_init(SimpleFS* fs){
     char* nameFile=(char*)malloc(sizeof(char)*FILENAME_MAX_LENGTH);
     memset(nameFile, 0,FILENAME_MAX_LENGTH);
     printf("inserisci il nome del file su disco -> ");
-    //CHECK_ERR(fgets(nameFile,FILENAME_MAX_LENGTH,stdin)==NULL,"can't read input filename");
-    nameFile[0]='d';
+    CHECK_ERR(fgets(nameFile,FILENAME_MAX_LENGTH,stdin)==NULL,"can't read input filename");
+    /*nameFile[0]='d';
     nameFile[1]='i';
     nameFile[2]='s';
     nameFile[3]='k';
-    nameFile[4]='\n';
+    nameFile[4]='\n';*/
     nameFile[strlen(nameFile)-1]='\0';
     fs->filename = nameFile;
 
@@ -109,6 +109,137 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
     
 }
 
+int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
+    int i=i_init, i_end=i_init;
+    FileHandle* fh;
+    for(i=0; argv[i]!=NULL; i++){
+        fh=SimpleFS_openFile(dh, argv[i]);
+        if(fh==NULL){
+            printf("Impossibile concatenare il file: %s\n",argv[i]);
+            i_end++;
+            continue;
+        }
+        char* buffer = (char*)malloc(512*sizeof(char));
+        /*TODO
+        while(SimpleFS_read(fh, buffer, 512)!=FAILED){
+            printf("%s", buffer);
+        }*/
+        SimpleFS_close(fh);
+    }
+    return i_end+i_init==i ? FAILED : SUCCESS;
+}
+
+int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
+    int toDisk=0, i=i_init, res, resS;
+
+    if(argv[i_init]!=NULL && strcmp(argv[i_init], "-to-disk")==0) toDisk=1;
+    if(argv[i_init]!=NULL && strcmp(argv[i_init], "-from-disk")==0) toDisk=2;
+    i++;
+
+    // Copia di file dall'esterno verso il nostro filesystem
+    if(toDisk==1){
+        int fd = open(argv[i], O_RDONLY);
+        if(fd==-1){
+            printf("Can't open file: %s\n",argv[i]);
+            return FAILED;
+        }
+        i++;
+        FileHandle* fh=SimpleFS_openFile(dh, argv[i]);
+        if(fh==NULL){
+            printf("Impossibile aprire dal Simplefs filesystem il file: %s\n",argv[i]);
+            return FAILED;
+        }
+
+        int num_letti=0;
+        resS=1;
+        char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
+        memset(buffer, 0, BLOCK_SIZE);
+        res=read(fd, buffer, BLOCK_SIZE);
+        num_letti=res;
+        while(resS!=FAILED && res<=BLOCK_SIZE && res!=-1){
+            /* TODO
+            resS=SimpleFS_write(fh, buffer, BLOCK_SIZE);*/
+            memset(buffer, 0, BLOCK_SIZE);
+            res=read(fd , buffer, BLOCK_SIZE);
+            if(res!=-1) num_letti=res;
+        }
+
+        while(resS!=FAILED && res==-1 && errno == EINTR){
+            res=lseek(fd, num_letti, SEEK_SET);
+            if(res==-1) return FAILED;
+            res=read(fd , buffer+num_letti+1, BLOCK_SIZE-num_letti);
+            /*TODO
+            resS=SimpleFS_write(fh, buffer, BLOCK_SIZE);*/
+            memset(buffer, 0, BLOCK_SIZE);
+            if(res!=-1) num_letti=res;
+        }
+
+        if(res==-1 && errno != EINTR){
+            if(resS!=FAILED) printf("Errore durante la scrittura del file su Simplefs\n");
+            printf("Errore durante la lettura del file dall'host\n");
+            return FAILED;
+        }
+
+        if(resS!=FAILED){
+            printf("Errore durante la scrittura del file su Simplefs\n");
+            return FAILED;
+        }
+
+        close(fd);
+        SimpleFS_close(fh);
+    }
+
+    // Copia di file dall'interno verso l'esterno
+    if(toDisk==2){
+        FileHandle* fh=SimpleFS_openFile(dh, argv[i]);
+        if(fh==NULL){
+            printf("Impossibile aprire dal Simplefs filesystem il file: %s\n",argv[i]);
+            return FAILED;
+        }
+        i++;
+        int fd = open(argv[i], O_RDONLY);
+        if(fd==-1){
+            printf("Can't open file: %s\n",argv[i]);
+            return FAILED;
+        }
+
+        res=1;
+        char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
+        memset(buffer, 0, BLOCK_SIZE);
+        /* TODO
+        resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);*/
+        while(resS!=FAILED && res<=BLOCK_SIZE && res!=-1){
+            res=write(fd , buffer, BLOCK_SIZE);
+            memset(buffer, 0, BLOCK_SIZE);
+            /* TODO
+            resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);*/
+        }
+
+        while(resS!=FAILED && res==-1 && errno == EINTR){
+            /* TODO
+            resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);*/
+            res=write(fd , buffer, BLOCK_SIZE);
+            memset(buffer, 0, BLOCK_SIZE);
+        }
+
+        if(res==-1 && errno != EINTR){
+            if(resS!=FAILED) printf("Errore durante la scrittura del file su Simplefs\n");
+            printf("Errore durante la lettura del file dall'host\n");
+            return FAILED;
+        }
+
+        if(resS!=FAILED){
+            printf("Errore durante la scrittura del file su Simplefs\n");
+            return FAILED;
+        }
+
+        close(fd);
+        SimpleFS_close(fh);
+    }
+
+    return SUCCESS;
+}
+
 int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE], int tok_num){
     int i, j, res;
     char* argv[MAX_NUM_COMMAND];
@@ -121,14 +252,13 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
             res=SimpleFS_readDir(&names, dh);
             if(res!=FAILED) printf("%s\n", names);
             else printf("Errore nell'esecuzione di ls\n");
-            return AGAIN;
         }
         if(argv[i]!=NULL && strcmp(argv[i], "cd")==0){
             for(j=i+1; argv[j]!=NULL; j++){
                 res=SimpleFS_changeDir(dh, argv[j]);
                 if(res==FAILED) printf("Errore nell'esecuzione di cd\n");
             }
-            return AGAIN;
+            i=j+1;
         }
         if(argv[i]!=NULL && strcmp(argv[i], "mkdir")==0){
 printf("riconociuto mkdir\n");
@@ -137,7 +267,36 @@ printf("riconociuto mkdir\n");
                 res=SimpleFS_mkDir(dh, argv[j]);
                 if(res==FAILED) printf("Errore nell'esecuzione di mkdir\n");
             }
-            return AGAIN;
+            i=j+1;
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "rm")==0){
+            for(j=i+1; argv[j]!=NULL; j++){
+                res=SimpleFS_remove(dh, argv[j]);
+                if(res==FAILED) printf("Errore nell'esecuzione di rm\n");
+            }
+            i=j+1;
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "touch")==0){
+printf("riconociuto touch\n");
+            for(j=i+1; argv[j]!=NULL; j++){
+                // TODO non funziona correttamente perche'
+                // caso di creazione del file se non esiste non
+                // e' stato implementato
+                FileHandle*fh=SimpleFS_openFile(dh, argv[j]);
+                if(fh==NULL) printf("Errore nell'esecuzione di touch\n");
+                else SimpleFS_close(fh);
+            }
+            i=j+1;
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "cat")==0){
+printf("riconociuto cat\n");
+            res=do_cat(dh, argv, i+1);
+            if(res==FAILED) printf("Errore nell'esecuzione di cat\n");
+        }
+        if(argv[i]!=NULL && strcmp(argv[i], "cp")==0){
+printf("riconociuto cp\n");
+            res=do_copy_file(dh, argv, i+1);
+            if(res==FAILED) printf("Errore nell'esecuzione di cp\n");
         }
     }
     return AGAIN;
