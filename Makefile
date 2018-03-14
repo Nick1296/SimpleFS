@@ -7,6 +7,7 @@ AR=ar
 BINS= simplefs_test
 
 OBJS = simplefs_test.c simplefs.c bitmap.c disk_driver.c
+OGAB= shell.c simplefs.c bitmap.c disk_driver.c
 
 HEADERS=simplefs.h\
         disk_driver.h\
@@ -26,6 +27,8 @@ simplefs_test: $(OBJS)
 valgrind:
 	valgrind --leak-check=full ./simplefs_test
 
+shell: $(OGAB)
+	$(CC) $(CCOPTS)  -o $@ $^ $(LIBS)
 clean:
 	rm -rf *.o *~  $(BINS)
 
