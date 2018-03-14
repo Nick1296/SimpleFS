@@ -1,5 +1,5 @@
 #include "bitmap.h"
-
+#include "common.h"
 
 void BitMap_init(BitMap* b, int bitmap_blocks, int disk_blocks,int occupation){
   //initializing the bitmap

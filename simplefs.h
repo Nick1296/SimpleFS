@@ -8,37 +8,29 @@
 
 // header, occupies the first portion of each block in the disk
 // represents a chained list of blocks
-typedef struct {
+typedef struct _BlockHeader {
   int previous_block; // chained list (previous block)
   int next_block;     // chained list (next_block)
   int block_in_file; // position in the file, if 0 we have a file control block
+  int block_in_disk;   // repeated position of the block on the disk
 } BlockHeader;
 
 
 // this is in the first block of a chain, after the header
-typedef struct {
+typedef struct _FileControlBlock{
   int directory_block; // first block of the parent directory
-  int block_in_disk;   // repeated position of the block on the disk
   char name[FILENAME_MAX_LENGTH];
   int size_in_bytes;
   int size_in_blocks;
   int is_dir;          // 0 for file, 1 for dir
 } FileControlBlock;
 
+/******************* stuff on disk BEGIN *******************/
 // this is the first physical block of a file
 // it has a header
 // an FCB storing file infos
-// and can contain some data
-
-//TODO this structure must be eliminated
-typedef struct{
-  int block_in_disk;
-  int nextIndex;
-  int previousIndex;
-} Index;
-
-/******************* stuff on disk BEGIN *******************/
-typedef struct {
+// and can contain some indexes
+typedef struct _FirstFileBlock{
   BlockHeader header;
   FileControlBlock fcb;
   int next_IndexBlock;
@@ -46,21 +38,21 @@ typedef struct {
   int blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)] ;
 } FirstFileBlock;
 
-
-typedef struct{
+typedef struct _Index{
   int nextIndex;
+	int block_in_disk;
   int previousIndex;
-  int indexes[BLOCK_SIZE/sizeof(int)];
-} IndexBlock;
+  int indexes[(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int)];
+} Index;
 
 // this is one of the next physical blocks of a file
-typedef struct {
+typedef struct _FileBlock{
   BlockHeader header;
   char  data[BLOCK_SIZE-sizeof(BlockHeader)];
 } FileBlock;
 
 // this is the first physical block of a directory
-typedef struct {
+typedef struct _FirstDirectoryBlock{
   BlockHeader header;
   FileControlBlock fcb;
   int num_entries;
@@ -71,20 +63,20 @@ typedef struct {
 } FirstDirectoryBlock;
 
 // this is remainder block of a directory
-typedef struct {
+typedef struct _DirectoryBlock{
   BlockHeader header;
   int file_blocks[ (BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int) ];
 } DirectoryBlock;
 /******************* stuff on disk END *******************/
 
-typedef struct {
+typedef struct _SimpleFS{
   DiskDriver* disk;
   int block_num;
   char* filename;
 } SimpleFS;
 
 // this is a file handle, used to refer to open files
-typedef struct {
+typedef struct _FileHandle{
   SimpleFS* sfs;                   // pointer to memory file system structure
   FirstFileBlock* fcb;             // pointer to the first block of the file(read it)
   FirstDirectoryBlock* directory;  // pointer to the directory where the file is stored
@@ -93,7 +85,7 @@ typedef struct {
   int pos_in_file;                 // position of the cursor
 } FileHandle;
 
-typedef struct {
+typedef struct _DirectoryHandle{
   SimpleFS* sfs;                   // pointer to memory file system structure
   FirstDirectoryBlock* dcb;        // pointer to the first block of the directory(read it)
   FirstDirectoryBlock* directory;  // pointer to the parent directory (null if top level)
@@ -104,7 +96,7 @@ typedef struct {
 
 //result of a search operation in a given directory
 //the file or directory blocks, if missing are NULLs
-typedef struct{
+typedef struct _SearchResult{
 	int result; //SUCCESS or FAILED
 	int type; // 0->file 1->directory
 	int dir_block_in_disk; //block on disk containing the last visited directory block;
@@ -165,6 +157,4 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname);
 // if a directory, it removes recursively all contained files
 int SimpleFS_remove(DirectoryHandle* d, const char* filename);
 
-// searches for a file or a directory given a DirectoryHandle and the element name
-SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name);
 

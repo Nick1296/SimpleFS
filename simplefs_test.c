@@ -256,8 +256,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   sprintf(name, "%d",9);
   printf("SimpleFS_createFile 9\n");
   FileHandle* fh=SimpleFS_createFile(dh,name);
-  free(fh->fcb);
-  free(fh);
+  SimpleFS_close(fh);
   readDir_test(dh,4);
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");
@@ -294,16 +293,14 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   sprintf(name, "%d",9);
   printf("SimpleFS_createFile 9\n");
   fh=SimpleFS_createFile(dh,name);
-  free(fh->fcb);
-  free(fh);
+  SimpleFS_close(fh);
   readDir_test(dh,12);
   printf("SimpleFS_changeDir sotto ciao\n");
   ret=SimpleFS_changeDir(dh, "sotto ciao");
   sprintf(name, "%d",10);
   printf("SimpleFS_createFile 10\n");
   fh=SimpleFS_createFile(dh,name);
-  free(fh->fcb);
-  free(fh);
+  SimpleFS_close(fh);
   if(ret!=FAILED) readDir_test(dh,13);
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");
@@ -345,6 +342,7 @@ int main(void) {
   DiskDriver_shutdown(disk);
   free(disk);
   free(dh->dcb);
+	free(dh->current_block);
   free(dh);
   free(fs);
 }
