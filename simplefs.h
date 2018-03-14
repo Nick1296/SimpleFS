@@ -8,7 +8,7 @@
 
 // header, occupies the first portion of each block in the disk
 // represents a chained list of blocks
-typedef struct {
+typedef struct _BlockHeader {
   int previous_block; // chained list (previous block)
   int next_block;     // chained list (next_block)
   int block_in_file; // position in the file, if 0 we have a file control block
@@ -17,7 +17,7 @@ typedef struct {
 
 
 // this is in the first block of a chain, after the header
-typedef struct {
+typedef struct _FileControlBlock{
   int directory_block; // first block of the parent directory
   char name[FILENAME_MAX_LENGTH];
   int size_in_bytes;
@@ -30,7 +30,7 @@ typedef struct {
 // it has a header
 // an FCB storing file infos
 // and can contain some indexes
-typedef struct {
+typedef struct _FirstFileBlock{
   BlockHeader header;
   FileControlBlock fcb;
   int next_IndexBlock;
@@ -38,7 +38,7 @@ typedef struct {
   int blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)] ;
 } FirstFileBlock;
 
-typedef struct{
+typedef struct _Index{
   int nextIndex;
 	int block_in_disk;
   int previousIndex;
@@ -46,13 +46,13 @@ typedef struct{
 } Index;
 
 // this is one of the next physical blocks of a file
-typedef struct {
+typedef struct _FileBlock{
   BlockHeader header;
   char  data[BLOCK_SIZE-sizeof(BlockHeader)];
 } FileBlock;
 
 // this is the first physical block of a directory
-typedef struct {
+typedef struct _FirstDirectoryBlock{
   BlockHeader header;
   FileControlBlock fcb;
   int num_entries;
@@ -63,20 +63,20 @@ typedef struct {
 } FirstDirectoryBlock;
 
 // this is remainder block of a directory
-typedef struct {
+typedef struct _DirectoryBlock{
   BlockHeader header;
   int file_blocks[ (BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int) ];
 } DirectoryBlock;
 /******************* stuff on disk END *******************/
 
-typedef struct {
+typedef struct _SimpleFS{
   DiskDriver* disk;
   int block_num;
   char* filename;
 } SimpleFS;
 
 // this is a file handle, used to refer to open files
-typedef struct {
+typedef struct _FileHandle{
   SimpleFS* sfs;                   // pointer to memory file system structure
   FirstFileBlock* fcb;             // pointer to the first block of the file(read it)
   FirstDirectoryBlock* directory;  // pointer to the directory where the file is stored
@@ -85,7 +85,7 @@ typedef struct {
   int pos_in_file;                 // position of the cursor
 } FileHandle;
 
-typedef struct {
+typedef struct _DirectoryHandle{
   SimpleFS* sfs;                   // pointer to memory file system structure
   FirstDirectoryBlock* dcb;        // pointer to the first block of the directory(read it)
   FirstDirectoryBlock* directory;  // pointer to the parent directory (null if top level)
@@ -96,7 +96,7 @@ typedef struct {
 
 //result of a search operation in a given directory
 //the file or directory blocks, if missing are NULLs
-typedef struct{
+typedef struct _SearchResult{
 	int result; //SUCCESS or FAILED
 	int type; // 0->file 1->directory
 	int dir_block_in_disk; //block on disk containing the last visited directory block;
