@@ -118,6 +118,7 @@ int DiskDriver_load(DiskDriver* disk, const char* filename){
   //populating the disk driver
   disk->header=(DiskHeader*)map;
   disk->bmap=(BitMap*)(map+sizeof(DiskHeader));
+  disk->bmap->entries=(uint8_t*)disk->bmap+sizeof(BitMap);
 
   return SUCCESS;
 }
@@ -266,7 +267,7 @@ void DiskDriver_shutdown(DiskDriver* disk){
   //unmapping the mappend memory
   res=munmap(disk->header,occupation*BLOCK_SIZE);
   CHECK_ERR(res==-1,"can't unmap the file");
-
+  
   //closing the file
   close(disk->fd);
   CHECK_ERR(res==-1,"can't close the file");
