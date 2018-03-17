@@ -1063,6 +1063,10 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			}
 			//we write the block on disk
 			res=DiskDriver_writeBlock(f->sfs->disk,block,block->header.block_in_disk);
+			//and if we allocated a new block we add it to the indexes
+			if(current_block_written){
+				res=SimpleFS_addIndex(f,block->header.block_in_disk);
+			}
 			//we update the cursor and the bytes written
 			if(res!=FAILED){
 				if(size-bytes_written>DB_max_elements-displacement){
@@ -1078,4 +1082,59 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	}
 	free(block);
 	return bytes_written;
+}
+
+// reads in the file, at current position size bytes and stores them in data
+// returns the number of bytes read
+int SimpleFS_read(FileHandle* f, void* data, int size){
+	int bytes_read=0;
+	FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
+	//we calculate the maximum number of elements in athe block
+	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
+	//we calculate thedisplacement in the first block;
+	int displacement;
+	//we could need to read more than one block so this variable will tell us if
+	//we need to move one block further
+	int current_block_read=0;
+	//if we are at the beginning of the file we move to the first data block
+	if(f->current_block->block_in_file==0){
+		current_block_read=1;
+	}
+	int res=SUCCESS;
+	//now we start reading
+	while(bytes_read<size && res==SUCCESS){
+		displacement=f->pos_in_file%DB_max_elements;
+		//we clean our block in memory
+		memset(block,0,sizeof(FileBlock));
+		if(current_block_read){
+			//we move one block further
+			if(f->current_block->next_block!=MISSING){
+				//if the nex block is missing we can't read further
+				free(block);
+				return bytes_read;
+			}
+			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->next_block);
+			if(res!=FAILED){
+				//we update our current block
+				memcpy(f->current_block,block,sizeof(BlockHeader));
+			}
+		}else{
+			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
+		}
+		//now we can read the data
+		if(size-bytes_read>DB_max_elements-displacement && res==SUCCESS){
+			//we read all the block
+			memcpy(data+bytes_read,block->data+displacement,DB_max_elements-displacement);
+			//we update the number of bytes read
+			bytes_read+=DB_max_elements-displacement;
+		}else{
+			//we read only one portion of the block
+			memcpy(data+bytes_read,block->data+displacement,size-bytes_read);
+			//we update the number of bytes read
+			bytes_read+=size-bytes_read;
+		}
+		current_block_read=1;
+	}
+	free(block);
+	return bytes_read;
 }
