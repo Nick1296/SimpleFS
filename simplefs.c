@@ -549,6 +549,66 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
   return SUCCESS;
 }
 
+//remves one file, including the FCB, all the index block and all the indexes
+int SimpleFS_removeFile(DirectoryHandle* d, int file){
+	int i,res,stop=0;
+	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
+	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int));
+	int next_IndexBlock;
+	//we load our FFB
+	FirstFileBlock *ffb=(FirstFileBlock*)malloc(sizeof(FirstFileBlock));
+	res=DiskDriver_readBlock(d->sfs->disk,ffb,sizeof(FirstFileBlock));
+	if(res==FAILED){
+		free(ffb);
+		CHECK_ERR(res==FAILED,"can't read the FFB to remove");
+	}
+	//firstly we deallocate the blocks indexed in our FileControlBlock
+	for(i=0;i<FFB_max_entries && !stop;i++){
+		if(ffb->blocks[i]!=MISSING){
+			res=DiskDriver_freeBlock(d->sfs->disk,ffb->blocks[i]);
+			CHECK_ERR(res==FAILED,"can't deallocate a data block indexed in the ffb");
+		}else{
+			stop=1;
+		}
+	}
+	//now we need to deallocate the ffb
+	res=DiskDriver_freeBlock(d->sfs->disk,file);
+	//now before destroying our ffb in memory we check if there are other IndexBlocks
+	if(ffb->next_IndexBlock==MISSING){
+		free(ffb);
+		return SUCCESS;
+	}
+	//if we get here we need to deallocate the other IndexBlocks
+	//we load the first IndexBlock
+	Index* index=(Index*)malloc(sizeof(Index));
+	next_IndexBlock=ffb->next_IndexBlock;
+	//now we can deallocate the ffb
+	free(ffb);
+	//now we deallocate all the data blocks in the index chain
+	while(next_IndexBlock!=MISSING){
+		//if possible we load the next index block
+		memset(index,0,sizeof(Index));
+		res=DiskDriver_readBlock(d->sfs->disk,index,next_IndexBlock);
+		CHECK_ERR(res==FAILED,"can't load the next index block");
+		//we deallocate all the data block in this index block
+		for(i=0;i<IB_max_entries && !stop;i++){
+			if(index->indexes[i]!=MISSING){
+				res=DiskDriver_freeBlock(d->sfs->disk,index->indexes[i]);
+				CHECK_ERR(res==FAILED,"can't deallocate a block in the index chain");
+			}else{
+				stop=1;
+			}
+			//now we deallocate the current index block
+			res=DiskDriver_freeBlock(d->sfs->disk,index->block_in_disk);
+			CHECK_ERR(res==FAILED,"can't deallocate the current index block");
+		}
+		//we get the next index block
+		next_IndexBlock=index->nextIndex;
+	}
+	free(index);
+	return SUCCESS;
+}
+
 // Removes files and directories recursively
 int SimpleFS_remove_rec(DirectoryHandle* d){
    // Check if passed parameters are valid
@@ -592,6 +652,7 @@ int SimpleFS_remove_rec(DirectoryHandle* d){
     int i;
     for(i=0; i<file->num_entries; i++){
       // TODO Free all block occupied that file
+
       DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
       file->file_blocks[i]=MISSING;
     }
