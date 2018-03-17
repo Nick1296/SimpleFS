@@ -977,6 +977,32 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	return block_in_disk;
 }
 
+// returns pos on success -1 on error (file too short)
+int SimpleFS_seek(FileHandle* f, int pos){
+	//we calculate the block in which we need to move
+	int block_in_file=pos/BLOCK_SIZE;
+	int res;
+	//we check if the block we need exists by checking on the index
+	int pos_in_disk=SimpleFS_getIndex(f,block_in_file);
+	if(pos_in_disk==FAILED){
+		//the block doesn't exists
+		return FAILED;
+	}else{
+		f->pos_in_file=pos;
+		//we read the block to get the BlockHeader
+		FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
+		res=DiskDriver_readBlock(f->sfs->disk,block,pos_in_disk);
+		if(res==FAILED){
+			free(block);
+			CHECK_ERR(res==FAILED,"can't read block while seeking");
+		}
+		//we copy the BlockHeader in the current_block
+		memcpy(f->current_block,&(block->header),sizeof(BlockHeader));
+		free(block);
+		return pos;
+	}
+}
+
 /* TODO
 // writes in the file, at current position for size bytes stored in data
 // overwriting and allocating new space if necessary
