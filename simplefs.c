@@ -825,8 +825,6 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int));
 
-	//TODO we use the FileHandle current_index_block to start our search
-
 	if(f->current_index_block->block_in_file==0){
 		//we search for a free spot in the FFB
 		for(i=0;i<FFB_max_entries;i++){
@@ -1003,24 +1001,81 @@ int SimpleFS_seek(FileHandle* f, int pos){
 	}
 }
 
-/* TODO
 // writes in the file, at current position for size bytes stored in data
 // overwriting and allocating new space if necessary
 // returns the number of bytes written
+//the cursor at the end of the write points to the last byte written
 int SimpleFS_write(FileHandle* f, void* data, int size){
-	//we need to calculate how may blocks we need to write
-	int blocks_needed=(size+BLOCK_SIZE-1)/BLOCK_SIZE;
+	//we calculate how many byte can fill a data block
+	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
 	int bytes_written=0;
+	//we calculate how many blocks we need to write
+	int blocks_needed=(size+DB_max_elements-1)/DB_max_elements;
 
-	 current position is stored in FileHandle as current_block and pos_in_block
-	* and it's the expression of pos_in_file using block and diplacement
-	* however if we have a blank file we don't have a data block allocated on disk
-	* so we need to allocate a block and write it on the the index
-	*//*
-	if(f->current_block==NULL){
-		//we need to allocate a block
-		int new_block=DiskDriver_getFreeBlock(f->sfs->disk,0);
+	/* current position is stored in FileHandle as pos_in_file,
+	* but we need to express it using current_block
+	* (which is alredy updated according to pos_in_file) and displacement
+	*/
+	int displacement;
+	//that's the result of our last write
+	int res=SUCCESS;
 
+	//we must write on the current block first, but it could be the fcb
+	int current_block_written=0;
+	if(f->current_block->block_in_file!=0){
+		current_block_written=1;
 	}
+
+	FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
+
+	while(blocks_needed>0 && res!=FAILED){
+		displacement=f->pos_in_file%DB_max_elements;
+		//we clear our block in memory to avoid writing cluttter on disk
+		memset(block,0,sizeof(FileBlock));
+		if(current_block_written){
+			//in this case we are writing at the beginning of the file
+			//or need a new block to keep writing
+			res=DiskDriver_getFreeBlock(f->sfs->disk,f->current_block->block_in_disk);
+			if(res!=FAILED){
+				//we initialize the new block
+				block->header.block_in_disk=res;
+				block->header.next_block=MISSING;
+				block->header.previous_block=f->current_block->block_in_disk;
+				block->header.block_in_file=f->current_block->block_in_file+1;
+				//we update our current_block
+				memcpy(f->current_block,&(block->header),sizeof(BlockHeader));
+			}
+		}else{
+			//if we get here we only need to load the block from disk
+			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
+			//and we indicate that our current block will be written
+			current_block_written=1;
+		}
+		//now we need to write in the block
+		if(res!=FAILED){
+			if(size-bytes_written>DB_max_elements-displacement){
+				//we fill the block if we need to write more than one block
+				memcpy(block->data+displacement,data+bytes_written,DB_max_elements-displacement);
+			}else{
+				//or we write only one portion of the block
+				memcpy(block->data+displacement,data+bytes_written,size-bytes_written);
+
+			}
+			//we write the block on disk
+			res=DiskDriver_writeBlock(f->sfs->disk,block,block->header.block_in_disk);
+			//we update the cursor and the bytes written
+			if(res!=FAILED){
+				if(size-bytes_written>DB_max_elements-displacement){
+					bytes_written+=DB_max_elements-displacement;
+					f->pos_in_file+=DB_max_elements-displacement;
+				}else{
+					f->pos_in_file+=size-bytes_written;
+					bytes_written+=size-bytes_written;
+				}
+				blocks_needed--;
+			}
+		}
+	}
+	free(block);
+	return bytes_written;
 }
-*/
