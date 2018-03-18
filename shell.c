@@ -36,7 +36,7 @@ int shell_init(SimpleFS* fs){
     while(format=='\n' && (format!='s' || format!='n')){
       printf("file non presente o filesystem non riconosiuto, formattare il file? (s,n)-> ");
       scanf("%c", &format);
-    } 
+    }
     if(format!='s') return FAILED;
 
     printf("inserisci il numero di blocchi del \"disco\" -> ");
@@ -60,7 +60,7 @@ void shell_info(DiskDriver *disk){
   printf("bitmap entries: %d\n",disk->header->bitmap_entries );
   printf("num free blocks: %d\n",disk->header->free_blocks );
   printf("first free block: %d\n",disk->header->first_free_block );
-  
+
   int i,j,printed=0,print;
   uint8_t mask;
   printf("\t Bitmap of disk info\n");
@@ -124,7 +124,7 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
   char* suc;
   char* buffer;
   memset(argv, 0, MAX_NUM_TOK+1);
-  for(i=0; i<tok_num; i++){    
+  for(i=0; i<tok_num; i++){
     now = tok_buf[i];
     now=strcat(now," ");
     if(now[0]==' ') now=now+1;
@@ -151,7 +151,7 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
     j++;
   }
   argv[j]=NULL;
-  
+
   //for(i=0; argv[i]!=NULL; i++) printf("argv[%d] >%s<\n",i, argv[i]);
 }
 
@@ -313,6 +313,60 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
   return SUCCESS;
 }
 
+//1 successo SUCCESS 0 fallimento FAILED
+// penultimo spazio di argv vedere se contiene > ====> se contiene > l'ultimo spazio contiene file destinazione
+int echo(char* argv[MAX_NUM_TOK +1],DirectoryHandle* d){
+    //variabili utili
+    int i;
+    int control=0;
+    char* result; //conterrà la stringa finale
+    FileHandle*  fh;//file handle
+    int x;
+
+    while(strcmp(argv[i],"")==0){
+        if(argv[i]!='>'){
+            //aggiungo il pezzetto di stringa al risultato-result conterrà ciò che andrà scritto
+            result=strcat(result,argv[i]);
+            i=i+1;
+        }
+        else{
+            control=1;
+            //vado al blocco successivo
+            i=i+1;
+            //se manca file di destinazione-->
+            if(argv[i]==NULL){
+                printf("file destinazione non presente.\n%s",result);
+            }
+            //open del file argv[i] e ci ficco il testo
+            ////////////////////////////////////////////////////////////////////////////////////////////
+            fh=SimpleFS_openFile(d,argv[i]);//apro il file con le funzioni nostre
+            if(fh==NULL){
+                //c'è stato un errore, la causa dell'errore sta in errno
+                printf("errore sulla open del file\n");
+                return FAILED;
+            }
+
+            x=SimpleFS_write(fh,(void*)result,strlen(result));
+            while(x==-1|| x!= strlen(result)){
+                x=SimpleFS_write(fh,(void*)result +x ,strlen(result)- x);
+            }
+            SimpleFS_close(fh);
+            //Al completamento con esito positivo, la funzione deve aprire il file e restituire un numero intero non negativo che rappresenta
+            //il descrittore di file inutilizzato con il numero più basso.
+            //Altrimenti, -1 deve essere restituito e errno impostato per indicare l'errore.
+            //Nessun file deve essere creato o modificato se la funzione restituisce -1.
+
+
+        }
+        if(control!=1){
+            //non devo mettere niente su nessun file
+            printf("\n %s \n",result);
+        }
+        //se è coinvolto il file avrò gestito il tutto nel ramo else
+        return SUCCESS;
+    }
+}
+
 int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE], int tok_num){
   int i, j, res;
   char* argv[MAX_NUM_COMMAND];
@@ -423,19 +477,19 @@ int main(int arg, char** args){
     ret=fgets(command,MAX_COMMAND_SIZE,stdin);
     if(ret==NULL) shell_shutdown(fs, dh);
     CHECK_ERR(ret==NULL,"can't read command from input");
-    
+
     if(strchr(command, ';')!=NULL) parse_command(command,";",tok_buf,&tok_num);
     else parse_command(command,"\n",tok_buf,&tok_num);
-    
+
     // tok_num nullo allora ricomincio
     if(tok_num<=0) continue;
-    
+
     // Chiamo do_cmd che esegue i comandi
     control=do_cmd(fs, dh, tok_buf, tok_num);
 
     memset(command, 0, MAX_COMMAND_SIZE);
     tok_num=0;
   }
-  
+
   return 0;
 }
