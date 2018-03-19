@@ -278,10 +278,12 @@ void read_seek_write_test(DirectoryHandle* dh){
 		data1[i]=0;
 		data2[i]=0;
 	}
-	printf("now we write another 512 bytes after the current position\n");
+	printf("now we write another 512 bytes at the end of the file\n");
+	res=SimpleFS_seek(f,1024);
+	printf("seek result :%d\n",res);
 	out=SimpleFS_write(f,data1+512,512);
 	printf("bytes written :%d\n",out);
-	res=SimpleFS_seek(f,512);
+	res=SimpleFS_seek(f,1024);
 	printf("seek result :%d\n",res);
 	out=SimpleFS_read(f,data2+512,512);
 	printf("bytes read :%d\n",out);
