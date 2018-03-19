@@ -230,6 +230,72 @@ void createFile_openFile_closeFile_test(DirectoryHandle* dh){
 	printf("done\n");
 }
 
+void read_seek_write_test(DirectoryHandle* dh){
+	printf("\t\t Testing SimpleFS_write/SimpleFS_seek/SimpleFS_read\n");
+	FileHandle *f=SimpleFS_createFile(dh,"rsw");
+	char data1[1024],data2[1024];
+	int i,res=1,out=0;
+	for(i=0;i<1024;i++){
+		data1[i]=i;
+	}
+	printf("we read a void file\n");
+	out=SimpleFS_read(f,data2,1024);
+	printf("bytes read :%d\n",out);
+	printf("we write a file with number from 0 to 1023 the we read it and check if it's correct\n");
+	out=SimpleFS_write(f,data1,1024);
+	printf("bytes written :%d\n",out);
+	res=SimpleFS_seek(f,0);
+	printf("seek result :%d\n",res);
+	out=SimpleFS_read(f,data2,1024);
+	printf("bytes read :%d\n",out);
+	res=1;
+	for(i=0;i<1024 && res;i++){
+		res=(data1[i]==data2[i])?1:0;
+	}
+	printf("result :%d\n",res);
+	for(i=0;i<1024;i++){
+		data1[i]=0;
+		data2[i]=0;
+	}
+	printf("now we move the cursor to 512 byte and we write and read the numbers from 0 to -511\n");
+	res=SimpleFS_seek(f,512);
+	printf("seek result :%d\n",res);
+	for(i=0;i<1024;i++){
+		data1[i]=-i;
+	}
+	out=SimpleFS_write(f,data1,512);
+	printf("bytes written :%d\n",out);
+	res=SimpleFS_seek(f,512);
+	printf("seek result :%d\n",res);
+	out=SimpleFS_read(f,data2,512);
+	printf("bytes read :%d\n",out);
+	res=1;
+	for(i=0;i<512 && res;i++){
+		res=(data1[i]==data2[i])?1:0;
+	}
+	printf("result :%d\n",res);
+	for(i=0;i<1024;i++){
+		data1[i]=0;
+		data2[i]=0;
+	}
+	printf("now we write another 512 bytes after the current position\n");
+	out=SimpleFS_write(f,data1+512,512);
+	printf("bytes written :%d\n",out);
+	res=SimpleFS_seek(f,512);
+	printf("seek result :%d\n",res);
+	out=SimpleFS_read(f,data2+512,512);
+	printf("bytes read :%d\n",out);
+	res=1;
+	for(i=512;i<1024 && res;i++){
+		res=(data1[i]==data2[i])?1:0;
+	}
+	printf("result :%d\n",res);
+	printf("now we try to seek at the end of the file to test if it returns -1\n");
+	res=SimpleFS_seek(f,2048);
+	printf("result :%d\n",res);
+	SimpleFS_close(f);
+}
+
 void readDir_test(DirectoryHandle *dh, int i){
   char* list;
   int ret=SimpleFS_readDir(&list, dh);
@@ -335,8 +401,9 @@ int main(void) {
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
-  createFile_openFile_closeFile_test(dh);
-  readDir_changeDir_mkDir_remove_test(dh);
+  //createFile_openFile_closeFile_test(dh);
+	read_seek_write_test(dh);
+  //readDir_changeDir_mkDir_remove_test(dh);
 
 
   DiskDriver_shutdown(disk);
