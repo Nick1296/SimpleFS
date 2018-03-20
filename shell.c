@@ -193,7 +193,7 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
     if(argv[i_init]!=NULL && strcmp(argv[i_init], "--help")==0) printf("\ncp --help");
     else printf("\nNessuna opezione selezionata, copia annullata.");
     printf("\nOpzioni selezionabili:"
-          "\n\t-to-disk per la copia verso SimpleFS,"
+          "\n\t-to-disk per la copia verso SimpleFS"
           "\n\t-from-disk per la copia da SimpleFS"
           "\n\t--help"
           "\n\nUso: cp [OPT] src dest\n\n");
@@ -382,6 +382,22 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
   memset(argv, 0, MAX_NUM_TOK+1);
   make_argv(argv, tok_buf, tok_num);
   for(i=0; argv[i]!=NULL; i++){
+    if(strcmp(argv[i], "help") == 0){
+      free(argv[i]);
+      printf("\n[progettoSO_shell] HELP\n"
+             "I comandi che puoi dare in questa semplice shell sono:\n"
+             "\t- /help per mostrare questo messaggio\n"
+             "\t- /ls per mostrare l'elenco dei file contenuti nella working directory\n"
+             "\t- /info per avere informazioni sul disco\n"
+             "\t- /touch per creare un file vuoto\n"
+             "\t- /echo per scrivere un messaggio su un file\n"
+             "\t- /cat per concatenare i file e scriverli sullo schermo\n"
+             "\t- /mkdir per creare una nuova directory\n"
+             "\t- /cd per cambiare la directory di lavoro\n"
+             "\t- /rm per rimuovere un file o una directory,"
+             " rimuove una directory in maniera ricorsiva se questa non e' vuota\n"
+             "\t- /cp per copiare un file da o verso SimpleFs\n\n");
+    }
     if(strcmp(argv[i], "quit") == 0){
       free(argv[i]);
       shell_shutdown(fs, dh);
