@@ -292,6 +292,24 @@ void read_seek_write_test(DirectoryHandle* dh){
 		res=(data1[i]==data2[i])?1:0;
 	}
 	printf("result :%d\n",res);
+	printf("we write a the begining of the file numbers from 0 to 128\n");
+	for(i=0;i<1024;i++){
+		data1[i]=i;
+		data2[i]=0;
+	}
+	res=SimpleFS_seek(f,0);
+	printf("seek result :%d\n",res);
+	out=SimpleFS_write(f,data1,128);
+	printf("bytes written :%d\n",out);
+	res=SimpleFS_seek(f,0);
+	printf("seek result :%d\n",res);
+	out=SimpleFS_read(f,data2,128);
+	printf("bytes read :%d\n",out);
+	res=1;
+	for(i=0;i<1024 && res;i++){
+		res=(data1[i]==data2[i])?1:0;
+	}
+	printf("result :%d\n",res);
 	printf("now we try to seek at the end of the file to test if it returns -1\n");
 	res=SimpleFS_seek(f,2048);
 	printf("result :%d\n",res);
