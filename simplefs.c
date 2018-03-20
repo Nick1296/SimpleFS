@@ -652,8 +652,7 @@ int SimpleFS_remove_rec(DirectoryHandle* d){
     int i;
     for(i=0; i<file->num_entries; i++){
       // TODO Free all block occupied that file
-
-      DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
+			SimpleFS_removeFile(d,file->file_blocks[i]);
       file->file_blocks[i]=MISSING;
     }
     file->num_entries-=i;
@@ -750,7 +749,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
     int i;
     for(i=0; i<file->num_entries; i++){
       // TODO Free all block occupied that file
-      DiskDriver_freeBlock(d->sfs->disk, file->file_blocks[i]);
+      SimpleFS_removeFile(d,file->file_blocks[i]);
       file->file_blocks[i]=MISSING;
     }
     file->num_entries-=i;
@@ -806,8 +805,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
       }
       else{
         // TODO Free all block occupied that file
-
-        DiskDriver_freeBlock(d->sfs->disk ,d->dcb->file_blocks[i]);
+				SimpleFS_removeFile(d,d->dcb->file_blocks[i]);
         d->dcb->file_blocks[i]=MISSING;
       }
     }
@@ -889,7 +887,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	if(f->current_index_block->block_in_file==0){
 		//we search for a free spot in the FFB
 		for(i=0;i<FFB_max_entries;i++){
-			if(f->fcb->blocks[i]!=MISSING){
+			if(f->fcb->blocks[i]==MISSING){
 				f->fcb->blocks[i]=block;
 				f->fcb->num_entries++;
 				res=DiskDriver_writeBlock(f->sfs->disk,f->fcb,f->fcb->header.block_in_disk);
@@ -1035,11 +1033,16 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	}
 	return block_in_disk;
 }
-
+//TODO modify the function to allo seeking after the end of file (like UNIX seek\)
 // returns pos on success -1 on error (file too short)
 int SimpleFS_seek(FileHandle* f, int pos){
+	//we check if the position is within the file dimension
+	if(pos>f->fcb->fcb.size_in_bytes){
+		return FAILED;
+	}
 	//we calculate the block in which we need to move
-	int block_in_file=pos/BLOCK_SIZE;
+	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
+	int block_in_file=pos/DB_max_elements;
 	int res;
 	//we check if the block we need exists by checking on the index
 	int pos_in_disk=SimpleFS_getIndex(f,block_in_file);
@@ -1061,7 +1064,7 @@ int SimpleFS_seek(FileHandle* f, int pos){
 		return pos;
 	}
 }
-
+//TODO write doesn't overwrite an existing file and it has rproblems computing the size of the file
 // writes in the file, at current position for size bytes stored in data
 // overwriting and allocating new space if necessary
 // returns the number of bytes written
@@ -1081,13 +1084,17 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	//that's the result of our last write
 	int res=SUCCESS;
 
+	// this is the last block written or the fcb if we write in a blank file,
+	void* last_block=malloc(BLOCK_SIZE);
+	FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
+
 	//we must write on the current block first, but it could be the fcb
 	int current_block_written=0;
-	if(f->current_block->block_in_file!=0){
+	if(f->current_block->block_in_file==0){
 		current_block_written=1;
+		//we initialize the last block to be able to link the FFB to the next data block
+		memcpy(last_block,f->fcb,sizeof(FirstFileBlock));
 	}
-
-	FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
 
 	while(blocks_needed>0 && res!=FAILED){
 		displacement=f->pos_in_file%DB_max_elements;
@@ -1105,12 +1112,18 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 				block->header.block_in_file=f->current_block->block_in_file+1;
 				//we update our current_block
 				memcpy(f->current_block,&(block->header),sizeof(BlockHeader));
+
+				//we update the last written block
+				((BlockHeader*)last_block)->next_block=block->header.block_in_disk;
+				//we write the changes on the disk
+				res=DiskDriver_writeBlock(f->sfs->disk,last_block,((BlockHeader*)last_block)->block_in_disk);
+				//we update the size in block of the file
+				f->fcb->fcb.size_in_blocks+=1;
 			}
 		}else{
 			//if we get here we only need to load the block from disk
 			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
-			//and we indicate that our current block will be written
-			current_block_written=1;
+
 		}
 		//now we need to write in the block
 		if(res!=FAILED){
@@ -1120,7 +1133,6 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			}else{
 				//or we write only one portion of the block
 				memcpy(block->data+displacement,data+bytes_written,size-bytes_written);
-
 			}
 			//we write the block on disk
 			res=DiskDriver_writeBlock(f->sfs->disk,block,block->header.block_in_disk);
@@ -1128,20 +1140,29 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			if(current_block_written){
 				res=SimpleFS_addIndex(f,block->header.block_in_disk);
 			}
+			//and we indicate that our current block has been written
+			current_block_written=1;
 			//we update the cursor and the bytes written
 			if(res!=FAILED){
 				if(size-bytes_written>DB_max_elements-displacement){
 					bytes_written+=DB_max_elements-displacement;
 					f->pos_in_file+=DB_max_elements-displacement;
+					//we update the zie in bytes of the file
+					f->fcb->fcb.size_in_bytes+=DB_max_elements-displacement;
 				}else{
 					f->pos_in_file+=size-bytes_written;
 					bytes_written+=size-bytes_written;
+					//we update the size in bytes of the file
+					f->fcb->fcb.size_in_bytes+=size-bytes_written;
 				}
 				blocks_needed--;
 			}
 		}
+		//we copy our current block in the last block, so we can link the next block if needed
+		memcpy(last_block,block,sizeof(FileBlock));
 	}
 	free(block);
+	free(last_block);
 	return bytes_written;
 }
 
@@ -1169,9 +1190,10 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 		memset(block,0,sizeof(FileBlock));
 		if(current_block_read){
 			//we move one block further
-			if(f->current_block->next_block!=MISSING){
+			if(f->current_block->next_block==MISSING){
 				//if the nex block is missing we can't read further
 				free(block);
+				f->pos_in_file+=bytes_read;
 				return bytes_read;
 			}
 			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->next_block);
@@ -1188,11 +1210,15 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 			memcpy(data+bytes_read,block->data+displacement,DB_max_elements-displacement);
 			//we update the number of bytes read
 			bytes_read+=DB_max_elements-displacement;
+			//we update our position in the file
+			f->pos_in_file+=DB_max_elements-displacement;
 		}else{
 			//we read only one portion of the block
 			memcpy(data+bytes_read,block->data+displacement,size-bytes_read);
 			//we update the number of bytes read
 			bytes_read+=size-bytes_read;
+			//we update our position in the file
+			f->pos_in_file+=size-bytes_read;
 		}
 		current_block_read=1;
 	}
