@@ -244,6 +244,7 @@ void read_seek_write_test(DirectoryHandle* dh){
 	printf("we write a file with number from 0 to 1023 the we read it and check if it's correct\n");
 	out=SimpleFS_write(f,data1,1024);
 	printf("bytes written :%d\n",out);
+	bitmap_info(f->sfs->disk);
 	res=SimpleFS_seek(f,0);
 	printf("seek result :%d\n",res);
 	out=SimpleFS_read(f,data2,1024);
@@ -389,7 +390,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   SimpleFS_close(fh);
   if(ret!=FAILED) readDir_test(dh,13);
   printf("SimpleFS_changeDir ..\n");
-  ret=SimpleFS_changeDir(dh, "..");
+ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   if(ret!=FAILED) readDir_test(dh,14);
   printf("SimpleFS_changeDir ..\n");
