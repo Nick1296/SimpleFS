@@ -54,9 +54,10 @@ Mkfile.old
 dkms.conf
 disk
 
-# KDE
+# KDE/vscode
 *.kdev*
 .directory
+.vscode
 
 # MAC DI MEDDA
 .DS_Store

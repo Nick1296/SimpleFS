@@ -166,13 +166,14 @@ int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
         continue;
     }else{
       char* buffer = (char*)malloc(512*sizeof(char));
-      memset(buffer, 0, 512*sizeof(char));
+      memset(buffer, 0, 513*sizeof(char));
       int byte_letti = SimpleFS_read(fh, buffer, 512);
-      while(byte_letti>0){
-printf("byte_letti: %d\n", byte_letti);
-printf("string %s\n",buffer);
+      while(fh->fcb->fcb.size_in_bytes-byte_letti>0){
+        printf("byte_letti: %d\n", byte_letti);
+        printf("string %s\n",buffer);
         memset(buffer, 0, 512*sizeof(char));
-        byte_letti = SimpleFS_read(fh, buffer, 512);
+        byte_letti += SimpleFS_read(fh, buffer, 512);
+        buffer[byte_letti]='\0';
       }
 printf("byte_letti: %d\n", byte_letti);
 printf("string %s\n",buffer);

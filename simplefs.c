@@ -1053,6 +1053,8 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 			if(f->fcb->blocks[i]==MISSING){
 				stop=1;
 			}else{
+				res=DiskDriver_freeBlock(f->sfs->disk,f->fcb->blocks[i]);
+				CHECK_ERR(res==FAILED,"can't free a block from disk");
 				f->fcb->blocks[i]=MISSING;
 			}
 		}
@@ -1061,10 +1063,12 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 		res=DiskDriver_readBlock(f->sfs->disk,indexblock,f->current_index_block->block_in_disk);
 		CHECK_ERR(res==FAILED,"can't load the current index block");
 		displacement=block_in_file%IB_max_entries;
-		for(i=displacement;i<FFB_max_entries && !stop;i++){
+		for(i=displacement;i<IB_max_entries && !stop;i++){
 			if(indexblock->indexes[i]==MISSING){
 				stop=1;
 			}else{
+				res=DiskDriver_freeBlock(f->sfs->disk,indexblock->indexes[i]);
+				CHECK_ERR(res==FAILED,"can't free a block from disk");
 				indexblock->indexes[i]=MISSING;
 			}
 		}
@@ -1085,6 +1089,12 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 	while(f->current_index_block->next_block!=MISSING){
 		res=DiskDriver_readBlock(f->sfs->disk,indexblock,f->current_index_block->next_block);
 		CHECK_ERR(res==FAILED,"can't load the current index block");
+		for(i=0;i<IB_max_entries;i++){
+			if(indexblock->indexes[i]!=MISSING){
+			res=DiskDriver_freeBlock(f->sfs->disk,indexblock->indexes[i]);
+			CHECK_ERR(res==FAILED,"can't free a block from disk");
+			}
+		}
 		res=DiskDriver_freeBlock(f->sfs->disk,indexblock->block_in_disk);
 		CHECK_ERR(res==FAILED,"can't deallocate the index block")
 		//we advance our current_index_block
@@ -1195,6 +1205,8 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			//if we get here we only need to load the block from disk
 			if(current_block_written && overwrite){
 				res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->next_block);
+				//we update our current_block
+				memcpy(f->current_block,&(block->header),sizeof(BlockHeader));
 			}else{
 				res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
 			}
@@ -1208,6 +1220,10 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 				//or we write only one portion of the block
 				memcpy(block->data+displacement,data+bytes_written,size-bytes_written);
 			}
+			//if we have finished writing and we are overwriting blocks we break the chain
+			if(overwrite && blocks_needed-1==0){
+				block->header.next_block=MISSING;
+			}
 			//we write the block on disk
 			res=DiskDriver_writeBlock(f->sfs->disk,block,block->header.block_in_disk);
 			//and if we allocated a new block we add it to the indexes
@@ -1217,7 +1233,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			//and we indicate that our current block has been written
 			current_block_written=1;
 			//check if we need to overwrite the next blocks or allcocate them
-			if(block->header.next_block!=MISSING){
+			if(f->current_block->next_block!=MISSING){
 				overwrite=1;
 			}else{
 				overwrite=0;
@@ -1240,17 +1256,9 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	f->fcb->fcb.size_in_bytes+=bytes_written;
 	f->pos_in_file+=bytes_written;
 
-	//we remove the blocks after the actual block from the indexes
-	if(block->header.next_block!=MISSING){
+	//we remove the blocks after the actual block from the indexes and free them
+	if(f->current_block->next_block!=MISSING){
 		SimpleFS_clearIndexes(f,block->header.block_in_file+1);
-	}
-	//we free the eventual next data blocks of the file
-	while(block->header.next_block!=MISSING && res!=FAILED){
-		res=DiskDriver_readBlock(f->sfs->disk,block,block->header.next_block);
-		if(res!=FAILED){
-			res=DiskDriver_freeBlock(f->sfs->disk,block->header.block_in_disk);
-			CHECK_ERR(res==FAILED,"can't deallocate an uneeded data block");
-		}
 	}
 
 	//we write the changes on our Fcb
@@ -1265,7 +1273,9 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 // returns the number of bytes read
 int SimpleFS_read(FileHandle* f, void* data, int size){
 	int bytes_read=0;
-	FileBlock* block=(FileBlock*)malloc(sizeof(FileBlock));
+	//we calcualte the bytes to read, which are the minimum between the size of the buffer and the size of the file
+	int bytes_to_read=(size<f->fcb->fcb.size_in_bytes)?size:f->fcb->fcb.size_in_bytes;
+	FileBlock *block=(FileBlock*)malloc(sizeof(FileBlock));
 	//we calculate the maximum number of elements in athe block
 	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
 	//we calculate thedisplacement in the first block;
@@ -1279,37 +1289,37 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 	}
 	int res=SUCCESS;
 	//now we start reading
-	while(bytes_read<size && res==SUCCESS){
+	while(bytes_read<bytes_to_read && res==SUCCESS){
 		displacement=f->pos_in_file%DB_max_elements;
 		//we clean our block in memory
 		memset(block,0,sizeof(FileBlock));
 		if(current_block_read){
 			//we move one block further
 			if(f->current_block->next_block==MISSING){
-				//if the nex block is missing we can't read further
+				//if the next block is missing we can't read further
 				free(block);
 				f->pos_in_file+=bytes_read;
 				return bytes_read;
 			}
 			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->next_block);
 			if(res!=FAILED){
-				//we update our current block
+				//we fetch the next_block
 				memcpy(f->current_block,block,sizeof(BlockHeader));
 			}
 		}else{
 			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
 		}
 		//now we can read the data
-		if(size-bytes_read>DB_max_elements-displacement && res==SUCCESS){
+		if(bytes_to_read-bytes_read>DB_max_elements-displacement && res==SUCCESS){
 			//we read all the block
 			memcpy(data+bytes_read,block->data+displacement,DB_max_elements-displacement);
 			//we update the number of bytes read
 			bytes_read+=DB_max_elements-displacement;
 		}else{
 			//we read only one portion of the block
-			memcpy(data+bytes_read,block->data+displacement,size-bytes_read);
+			memcpy(data+bytes_read,block->data+displacement,bytes_to_read-bytes_read);
 			//we update the number of bytes read
-			bytes_read+=size-bytes_read;
+			bytes_read+=bytes_to_read-bytes_read;
 		}
 		current_block_read=1;
 	}
