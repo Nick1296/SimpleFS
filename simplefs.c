@@ -361,14 +361,14 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
   int dir_entries=d->dcb->num_entries;
   int searching=1, i, res;
 
-  int dim_names = (dir_entries+1)*(FILENAME_MAX_LENGTH*sizeof(char));
+  int dim_names = 25*sizeof(char)+(dir_entries+1)*(FILENAME_MAX_LENGTH*sizeof(char));
   *names = malloc(dim_names);
   memset(*names, 0, dim_names);
 
   strncpy(*names, d->dcb->fcb.name, strlen(d->dcb->fcb.name));
   strcat(*names, newLine);
 
-  if(dim_names==1*FILENAME_MAX_LENGTH*sizeof(char)){
+  if(dim_names==25*sizeof(char)+1*FILENAME_MAX_LENGTH*sizeof(char)){
     strcat(*names, str);
     return SUCCESS;
   }
@@ -381,7 +381,9 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
     res=DiskDriver_readBlock(d->sfs->disk, file, d->dcb->file_blocks[i]);
     CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
 
-    // Copy name of files of current directory
+    // Copy data of files of current directory
+    sprintf((*names)+strlen(*names), "%d", file->fcb.size_in_bytes);
+    sprintf((*names)+strlen(*names), "%c", ' ');
     strncpy((*names)+strlen(*names), file->fcb.name, strlen(file->fcb.name));
     if(file->fcb.is_dir==DIRECTORY) strncpy((*names)+strlen(*names), isDir, strlen(isDir));
     else strncpy((*names)+strlen(*names), isFile, strlen(isFile));

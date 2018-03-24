@@ -128,7 +128,7 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
     now = tok_buf[i];
     now=strcat(now," ");
     if(now[0]==' ') now=now+1;
-    if(strchr(now, '\n')!=NULL) *(strchr(now, '\n')) = '\0';
+    if(strchr(now, '\n')!=NULL) *(strchr(now, '\n')) = ' ';
     if(strchr(now, '/')!=NULL){
       app=strchr(now, '/')+1;
       suc=strchr(app, ' ');
@@ -146,10 +146,6 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
       j++;
     }
   }
-  if(argv[j]!=NULL && strcmp(argv[j], "\0")!=0){
-    argv[j]="\0";
-    j++;
-  }
   argv[j]=NULL;
 
   for(i=0; argv[i]!=NULL; i++) printf("argv[%d] >%s<\n",i, argv[i]);
@@ -160,27 +156,25 @@ int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
   FileHandle* fh;
   for(; argv[i]!=NULL && strcmp(argv[i], "\0")!=0; i++){
     fh=SimpleFS_openFile(dh, argv[i]);
-    if(fh==NULL){
-        printf("Impossibile concatenare il file: %s\n",argv[i]);
-        free(argv[i]);
-        continue;
-    }else{
-      char* buffer = (char*)malloc(512*sizeof(char));
-      memset(buffer, 0, 513*sizeof(char));
-      int byte_letti = SimpleFS_read(fh, buffer, 512);
-      while(fh->fcb->fcb.size_in_bytes-byte_letti>0){
-        printf("byte_letti: %d\n", byte_letti);
-        printf("string %s\n",buffer);
+    if(fh==NULL) printf("Impossibile concatenare il file: %s\n",argv[i]);
+    else{
+      if(SimpleFS_seek(fh, 0) == FAILED) printf("Impossibile concatenare il file: %s\n",argv[i]);
+      else{
+        char* buffer = (char*)malloc(512*sizeof(char));
         memset(buffer, 0, 512*sizeof(char));
-        byte_letti += SimpleFS_read(fh, buffer, 512);
-        buffer[byte_letti]='\0';
+        int byte_letti = SimpleFS_read(fh, buffer, 512);
+        while(fh->fcb->fcb.size_in_bytes-byte_letti>0){
+          printf("%s",buffer);
+          memset(buffer, 0, 512*sizeof(char));
+          byte_letti += SimpleFS_read(fh, buffer, 512);
+          buffer[byte_letti]='\0';
+        }
+        printf("%s",buffer);
+        free(buffer);
       }
-printf("byte_letti: %d\n", byte_letti);
-printf("string %s\n",buffer);
       SimpleFS_close(fh);
-      free(buffer);
     }
-    free(argv[i]);
+    if(strcmp(argv[i], "\0")!=0) free(argv[i]);
   }
   return i;
 }
@@ -198,7 +192,7 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
           "\n\t-from-disk per la copia da SimpleFS"
           "\n\t--help"
           "\n\nUso: cp [OPT] src dest\n\n");
-    return SUCCESS;
+    return i;
   }
   i++;
 
@@ -207,7 +201,7 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
     int fd = open(argv[i], O_RDONLY);
     if(fd==-1){
       printf("Impossibile aprire il file %s\n",argv[i]);
-      return FAILED;
+      return i;
     }
     free(argv[i]);
     i++;
@@ -216,36 +210,35 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
       fh=SimpleFS_createFile(dh, argv[i]);
       if(fh==NULL){
         printf("Impossibile aprire dal Simplefs filesystem il file: %s\n",argv[i]);
-        return FAILED;
+        return i;
       }
     }
     free(argv[i]);
 
+    int daLeggere = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);
     int num_letti=0;
-    resS=1;
     char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
-    memset(buffer, 0, BLOCK_SIZE);
-    res=read(fd, buffer, BLOCK_SIZE);
-    num_letti=res;
-    while(resS>0 && res!=-1){
-printf("byte_letti: %d\n", res);
-printf("string %s\n",buffer);
-      resS=SimpleFS_write(fh, buffer, num_letti);
-printf("byte_scritti: %d\n", resS);
+    printf("\n[");
+//printf("da leggere %d \n", daLeggere);
+//printf("letti %d \n", num_letti);
+    while(num_letti < daLeggere){
       memset(buffer, 0, BLOCK_SIZE);
-      res=read(fd , buffer, BLOCK_SIZE);
-      if(res!=-1) num_letti=res;
+      res=read(fd, buffer, BLOCK_SIZE);
+      if(res == -1 && errno == EINTR) continue;
+      if(res>0){
+        num_letti+=res;
+        resS=SimpleFS_write(fh, buffer, res);
+//printf("scritti %d \n", resS);
+        if(resS==FAILED) printf("Impossibile scrivere su file\n");
+      }
+      else num_letti = daLeggere;
+//printf("letti %d \n", num_letti);
+      printf("=");
+      fflush(stdout);
     }
-
-    while(resS>0 && res==-1 && errno == EINTR){
-      res=lseek(fd, num_letti, SEEK_SET);
-      if(res==-1) return FAILED;
-      res=read(fd , buffer+num_letti+1, BLOCK_SIZE-num_letti);
-      resS=SimpleFS_write(fh, buffer, BLOCK_SIZE);
-      memset(buffer, 0, BLOCK_SIZE);
-      if(res!=-1) num_letti=res;
-    }
-
+    printf("]\n");
+    
     if(res==-1 && errno != EINTR){
       if(resS!=FAILED){
         printf("Errore durante la scrittura del file su Simplefs\n");
@@ -253,17 +246,18 @@ printf("byte_scritti: %d\n", resS);
       }
       close(fd);
       printf("Errore durante la lettura del file dall'host\n");
-      return FAILED;
+      return i;
     }
 
     if(resS==FAILED){
       SimpleFS_close(fh);
       printf("Errore durante la scrittura del file su Simplefs\n");
-      return FAILED;
+      return i;
     }
 
     close(fd);
     SimpleFS_close(fh);
+    free(buffer);
   }
 
   // Copia di file dall'interno verso l'esterno
@@ -271,34 +265,45 @@ printf("byte_scritti: %d\n", resS);
     FileHandle* fh=SimpleFS_openFile(dh, argv[i]);
     if(fh==NULL){
       printf("Impossibile aprire dal Simplefs filesystem il file: %s\n",argv[i]);
-      return FAILED;
+      return i;
     }
     i++;
     int fd = open(argv[i], O_WRONLY|O_DIRECTORY, 0666);
     if(fd==-1){
-      fd = open(argv[i], O_WRONLY|O_APPEND|O_CREAT, 0666);
+      fd = open(argv[i], O_WRONLY|O_TRUNC|O_CREAT, 0666);
       if(fd==-1){
         printf("Impossibile aprire il file: %s\n",argv[i]);
-        return FAILED;
+        return i;
       }
     }
 
-    res=1;
+    if(SimpleFS_seek(fh, 0) == FAILED){
+      printf("Impossibile leggere il file sorgente\n");
+      return i;
+    }
+    
     char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
-    memset(buffer, 0, BLOCK_SIZE);
-    resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);
-    while(resS>0 && res!=-1){
-      res=write(fd , buffer, BLOCK_SIZE);
-      memset(buffer, 0, BLOCK_SIZE);
-      resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);
+    resS=0;
+    printf("\n[");
+    while(fh->fcb->fcb.size_in_bytes-resS>0){
+      memset(buffer, '\0', BLOCK_SIZE);
+      res=resS;
+      if(fh->fcb->fcb.size_in_bytes-resS > BLOCK_SIZE) resS+=SimpleFS_read(fh, buffer, BLOCK_SIZE);
+      else resS+=SimpleFS_read(fh, buffer, fh->fcb->fcb.size_in_bytes-resS);
+      while(res < resS){
+        res+=write(fd , buffer+res%512, resS-res);
+        if(res == -1 && errno == EINTR) continue;
+        if(res == -1){
+          printf("Impossibile scrivere su file\n");
+          res = resS;
+        }
+        
+      }
+      printf("=");
+      fflush(stdout);
     }
-
-    while(resS>0 && res==-1 && errno == EINTR){
-      resS=SimpleFS_read(fh, buffer, BLOCK_SIZE);
-      res=write(fd , buffer, BLOCK_SIZE);
-      memset(buffer, 0, BLOCK_SIZE);
-    }
-
+    printf("]\n");
+    
     if(res==-1 && errno != EINTR){
       if(resS!=FAILED){
         printf("Errore durante la lettura del file su Simplefs\n");
@@ -306,76 +311,74 @@ printf("byte_scritti: %d\n", resS);
       }
       close(fd);
       printf("Errore durante la scrittura del file sull'host\n");
-      return FAILED;
+      return i;
     }
 
     if(resS==FAILED){
       SimpleFS_close(fh);
       close(fd);
       printf("Errore durante la lettura del file su Simplefs\n");
-      return FAILED;
+      return i;
     }
 
     close(fd);
     SimpleFS_close(fh);
+    free(buffer);
   }
 
-  return SUCCESS;
+  return i;
 }
 
 // penultimo spazio di argv vedere se contiene >    ====> se contiene > l'ultimo spazio contiene file destinazione
-int echo(char* argv[MAX_NUM_TOK +1],DirectoryHandle* d){
+int echo(char* argv[MAX_NUM_TOK +1],DirectoryHandle* d, int i_init){
     //variabili utili
-    int i=1;
+    int i=i_init;
     int control=0;//variabile che se è settata a 1 mi indica che bisogna scrivere su file
     char* result=malloc(sizeof(char)*MAX_COMMAND_SIZE);
     FileHandle*  fh;
-    int x;
+    int b_scritti;
 
-    while(argv[i]!= NULL && strcmp(argv[i],"") != 0){
+    for(; argv[i]!= NULL && strcmp(argv[i],"\0") != 0; i++){
         //composizione stringa finale in result, se si trova '>' result dovrà essere scritto  su file
         if(strcmp(argv[i],">") != 0){
-
             result=strcat(result,argv[i]);
             result=strcat(result," ");
-            i=i+1;
-        }
-        else{
-            control=1;
-            i=i+1;
-            //se manca file di destinazione
-            if(argv[i]==NULL){
-                printf("file destinazione non presente.\n%s",result);
-                return FAILED;
-            }
-            fh=SimpleFS_createFile(d,argv[i]);
-            if(fh==NULL){
-                fh=SimpleFS_openFile(d,argv[i]);
-                if(fh==NULL){
-                    printf("errore sulla open del file\n");
-                    return FAILED;
-                }
-            }
-            x=SimpleFS_write(fh,(void*)result,strlen(result));
-            while(x==-1|| x!= strlen(result)){
-                x=SimpleFS_write(fh,(void*)result +x ,strlen(result)- x);
-            }
-            SimpleFS_close(fh);
-            //Al completamento con esito positivo, la funzione deve aprire il file e restituire un numero intero non negativo che rappresenta
-            //la corretta esecuzione della funzione.
-            //Altrimenti, FAILED deve essere restituito.
-            //Nessun file deve essere creato o modificato se la funzione restituisce FAILED.
+        }else{
+          control=1;
+          i++;
+          //se manca file di destinazione
+          if(argv[i]==NULL){
+              printf("file destinazione non presente.\n%s",result);
+              return i;
+          }
+          fh=SimpleFS_createFile(d,argv[i]);
+          if(fh==NULL){
+              fh=SimpleFS_openFile(d,argv[i]);
+              if(fh==NULL){
+                  printf("errore sulla open del file\n");
+                  return i;
+              }
+          }
+          b_scritti=SimpleFS_write(fh,(void*)result,strlen(result));
+          while(b_scritti==-1|| b_scritti!= strlen(result)){
+              b_scritti=SimpleFS_write(fh,(void*)result+b_scritti ,strlen(result)-b_scritti);
+          }
+          SimpleFS_close(fh);
+          //Al completamento con esito positivo, la funzione deve aprire il file e restituire un numero intero non negativo che rappresenta
+          //la corretta esecuzione della funzione.
+          //Altrimenti, FAILED deve essere restituito.
+          //Nessun file deve essere creato o modificato se la funzione restituisce FAILED.
         }
         free(argv[i]);
     }
     //uscito da questo ciclo, se c'era il '>', il file sarà gia stato scritto(con successo o insuccesso) e quindi non sarà necessario fare niente
     //altrimenti sarà necessaria una printf di result
     if(control!=1){
-            //non devo mettere niente su nessun file==>printf
-            printf("\n %s \n",result);
+      //non devo mettere niente su nessun file==>printf
+      printf("\n %s \n",result);
     }
     free(result);
-    return SUCCESS;
+    return i;
 }
 
 int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE], int tok_num){
@@ -384,8 +387,7 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
   memset(argv, 0, MAX_NUM_TOK+1);
   make_argv(argv, tok_buf, tok_num);
   for(i=0; argv[i]!=NULL; i++){
-    if(strcmp(argv[i], "help") == 0){
-      free(argv[i]);
+    if(argv[i]!=NULL && strcmp(argv[i], "help") == 0){
       printf("\n[progettoSO_shell] HELP\n"
              "I comandi che puoi dare in questa semplice shell sono:\n"
              "\t- /help per mostrare questo messaggio\n"
@@ -400,23 +402,21 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
              " rimuove una directory in maniera ricorsiva se questa non e' vuota\n"
              "\t- /cp per copiare un file da o verso SimpleFs\n\n");
     }
-    if(strcmp(argv[i], "quit") == 0){
-      free(argv[i]);
+    if(argv[i]!=NULL && strcmp(argv[i], "quit") == 0){
       shell_shutdown(fs, dh);
+      free(argv[i]);
       return QUIT;
     }
-    if(strcmp(argv[i], "ls")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "ls")==0){
       char* names;
       res=SimpleFS_readDir(&names, dh);
       if(res!=FAILED){
-        printf("%s\n", names);
+        printf("\n%s\n", names);
         free(names);
       }
       else printf("Errore nell'esecuzione di ls\n");
-      free(argv[i]);
-      i++;
     }
-    if(strcmp(argv[i], "cd")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "cd")==0){
       free(argv[i]);
       for(j=i+1; argv[j]!=NULL && strcmp(argv[j], "\0")!=0; j++){
           res=SimpleFS_changeDir(dh, argv[j]);
@@ -425,7 +425,7 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
       }
       i=j;
     }
-    if(strcmp(argv[i], "mkdir")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "mkdir")==0){
       free(argv[i]);
       for(j=i+1; argv[j]!=NULL && strcmp(argv[j], "\0")!=0; j++){
           res=SimpleFS_mkDir(dh, argv[j]);
@@ -434,7 +434,7 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
       }
       i=j;
     }
-    if(strcmp(argv[i], "rm")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "rm")==0){
       free(argv[i]);
       for(j=i+1; argv[j]!=NULL && strcmp(argv[j], "\0")!=0; j++){
           res=SimpleFS_remove(dh, argv[j]);
@@ -443,7 +443,7 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
       }
       i=j;
     }
-    if(strcmp(argv[i], "touch")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "touch")==0){
       free(argv[i]);
       for(j=i+1; argv[j]!=NULL && strcmp(argv[j], "\0")!=0; j++){
           FileHandle*fh=SimpleFS_createFile(dh, argv[j]);
@@ -453,25 +453,22 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
       }
       i=j;
     }
-    if(strcmp(argv[i], "cat")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "cat")==0){
       free(argv[i]);
       i+=do_cat(dh, argv, i+1);
     }
-    if(strcmp(argv[i], "cp")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "cp")==0){
       free(argv[i]);
-      res=do_copy_file(dh, argv, i+1);
-      if(res==FAILED) printf("Errore nell'esecuzione di cp\n");
+      i+=do_copy_file(dh, argv, i+1);
     }
-    if(strcmp(argv[i], "info")==0){
+    if(argv[i]!=NULL && strcmp(argv[i], "info")==0){
       shell_info(fs->disk);
-      free(argv[i]);
-      i++;
     }
-    if(strcmp(argv[i], "echo")==0){
-      echo(argv,dh);
+    if(argv[i]!=NULL && strcmp(argv[i], "echo")==0){
       free(argv[i]);
-      i++;
+      i+=echo(argv,dh, i+1);
     }
+    if(argv[i]!=NULL && strcmp(argv[i], "\0")!=0) free(argv[i]);
   }
   return AGAIN;
 }
