@@ -4,7 +4,7 @@ CC=gcc
 AR=ar
 
 
-BINS= simplefs_test
+BINS= simplefs_test shell
 
 OBJS = simplefs_test.c simplefs.c bitmap.c disk_driver.c
 OGAB= shell.c simplefs.c bitmap.c disk_driver.c
