@@ -1,0 +1,51 @@
+
+
+DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk);
+Funzione che inizializza il file system su un disco già esistente e restituisce un handle alla directory di 
+livello superiore memorizzata nel primo blocco.
+
+void SimpleFS_format(SimpleFS* fs);
+Funzione che serve per formattare e reinizializzare un file system già esistente. 
+Attraverso questa funzione verrà resettata anche la BitMap dei blocchi occupati sul disco.
+
+FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename);
+Funzione che crea un file vuoto nella directory d e restituisce NULL in caso di errore o altrimenti 
+un handle andun file  vuoto.
+
+int SimpleFS_readDir(char** names, DirectoryHandle* d);
+Funzione che legge il nome di tutti i file e le directory figli della directory passata come parametro.
+
+FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename);
+Funzione che apre un file già esistente nella directory d.
+
+void SimpleFS_close(FileHandle* f);
+Funzione che chiude un file già esistente.
+
+
+
+
+
+int SimpleFS_write(FileHandle* f, void* data, int size);
+Funzione che restituisce il numero di byte scritti, che sovrascrive e alloca nuovo spazio se necessario per 
+scrivere nel file.
+
+int SimpleFS_read(FileHandle* f, void* data, int size);
+Funzione che restituisce il numero di byte letti,che sovrascrive e alloca nuovo spazio se necessario per 
+leggere il file.
+
+int SimpleFS_seek(FileHandle* f, int pos);
+Funzione che restituisce il numero di byte letti spostando il puntatore corrente in pos,che sarà restituito 
+in caso di successo, -1 in caso di errore (file troppo corto).
+
+int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname);
+Funzione che cerca una directory in d. Se dirname è uguale a "..", sale di un livello. La funzione restituisce 
+0 in caso di successo, valore negativo in caso di errore. La funzione ha effetto collaterale sul DirectoryHandle 
+fornito in input.
+
+int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname);
+Funzione che crea una nuova directory figlia della directory passata come parametro.
+La funzione restituisce 0 in caso di successo,-1 in caso di errore.
+
+int SimpleFS_remove(DirectoryHandle* d, const char* filename);
+Funzione che rimuove il file nella directory corrente. La funzione restituisce 0 in caso di successo,-1 in caso di errore.
+Se viene rimossa una directory, saranno eliminati tutti i file e le directory contenuti in essa.
