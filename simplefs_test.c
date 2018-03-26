@@ -399,13 +399,29 @@ ret=SimpleFS_changeDir(dh, "..");
   bitmap_info(dh->sfs->disk);
 }
 
+void cp_test(DirectoryHandle *dh){
+	printf("to test the FS we load a file from disk we write it on our disk we re-read it and check if it's correct\n");
+	FileHandle *f=SimpleFS_createFile(dh,"test");
+	int fd=open("./test/war_peace.txt",O_RDONLY,0666);
+	int dim = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	void *src=malloc(sizeof(char)*dim), *dst=malloc(sizeof(char)*dim);
+	read(fd,src,dim);
+	SimpleFS_write(f,src,dim*sizeof(char));
+	SimpleFS_seek(f,0);
+	SimpleFS_read(f,dst,dim*sizeof(char));
+	int res=memcmp(src,dst,dim*sizeof(char));
+	printf("result: %d\n",res);
+	SimpleFS_close(f);
+}
+
 int main(void) {
   int res;
-  unlink("disk");
   DiskDriver *disk=(DiskDriver*)malloc(sizeof(DiskDriver));
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
-  char diskname[]="disk";
-  fs->block_num=30;
+  char diskname[]="./test/disk";
+	unlink(diskname);
+  fs->block_num=7000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -413,10 +429,11 @@ int main(void) {
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
-	bitmap_info(disk);
+	//bitmap_info(disk);
   //createFile_openFile_closeFile_test(dh);
-	read_seek_write_test(dh);
+	//read_seek_write_test(dh);
   //readDir_changeDir_mkDir_remove_test(dh);
+	cp_test(dh);
 
 
   DiskDriver_shutdown(disk);
