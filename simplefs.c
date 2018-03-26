@@ -482,7 +482,7 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
     free(search);
 
     return SUCCESS;
-  }
+  }else free(search);
 
   return FAILED;
  }
