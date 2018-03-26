@@ -864,13 +864,9 @@ FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
 void SimpleFS_close(FileHandle* f){
 
 	//we deallocate BlockHeader which indicates the current data block in the file
-	if(f->current_block!=NULL){
-		free(f->current_block);
-	}
+	free(f->current_block);
 	//we deallocate the current BlockHeader of the index
-	if(f->current_index_block!=NULL){
-		free(f->current_index_block);
-	}
+	free(f->current_index_block);
 	//we need to deallocate the FirstFileBlock
 	free(f->fcb);
 	//we deallocate the directory block in which the file is contained
@@ -881,10 +877,10 @@ void SimpleFS_close(FileHandle* f){
 
 // we add a block in the index list of the file returning FAILED/SUCCESS
 int SimpleFS_addIndex(FileHandle *f,int block){
-	//firstly we try to fill the array in the FirstFileBlock
 	int i,res;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int));
+	//we use he current_index block to determine where we must put the new block
 
 	if(f->fcb->num_entries-FFB_max_entries<=0){
 		//we search for a free spot in the FFB
@@ -897,6 +893,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 				return SUCCESS;
 			}
 		}
+
 		// if we get in here we need to allocate the 2nd index block
 		int new_index=DiskDriver_getFreeBlock(f->sfs->disk,0);
 		CHECK_ERR(new_index==FAILED,"can't get a new index block");
@@ -909,6 +906,11 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 			new_index_block->indexes[i]=MISSING;
 		}
 
+		//we update our current index block
+		f->current_index_block->block_in_disk=new_index_block->block_in_disk;
+		f->current_index_block->next_block=new_index_block->nextIndex;
+		f->current_index_block->previous_block=new_index_block->previousIndex;
+
 		//now we write the new index block to disk
 		res=DiskDriver_writeBlock(f->sfs->disk,new_index_block,new_index);
 		free(new_index_block);
@@ -919,28 +921,39 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 		res=DiskDriver_writeBlock(f->sfs->disk,f->fcb,f->fcb->header.block_in_disk);
 		CHECK_ERR(res==FAILED,"can't write the update to disk");
 		return SUCCESS;
-	}
-
-	Index *index=(Index*)malloc(sizeof(Index));
-	while(f->current_index_block->next_block!=MISSING){
-
-		res=DiskDriver_readBlock(f->sfs->disk,index,f->current_index_block->next_block);
-		if(res==FAILED){
-			free(index);
-			CHECK_ERR(res==FAILED,"can't read the next index block");
-		}
-		// we update our current index block
-		f->current_index_block->next_block=index->nextIndex;
-		f->current_index_block->next_block=index->previousIndex;
+	}/*else{
+		//if we get here we use the index block in current_index_block to add the index
+		Index *index=(Index*)malloc(sizeof(Index));
+		res=DiskDriver_readBlock(f->sfs->disk,index,f->current_index_block->block_in_disk);
+		CHECK_ERR(res==FAILED,"can't load the current index block from disk");
 		for(i=0;i<IB_max_entries;i++){
-			if(index->indexes[i]==MISSING){
+			if(index->indexes [i]==MISSING){
 				index->indexes[i]=block;
 				f->fcb->num_entries++;
 				res=DiskDriver_writeBlock(f->sfs->disk,index,index->block_in_disk);
 				free(index);
-				CHECK_ERR(res==FAILED,"can't write update to disk");
+				CHECK_ERR(res==FAILED,"can't write the update to the current index block on disk");
+				res=DiskDriver_writeBlock(f->sfs->disk,f->fcb,f->fcb->header.block_in_disk);
+				CHECK_ERR(res==FAILED,"can't write the update to disk");
 				return SUCCESS;
 			}
+		}
+	}*/
+
+	Index *index=(Index*)malloc(sizeof(Index));
+	//if we get here we use the index block in current_index_block to add the index
+	res=DiskDriver_readBlock(f->sfs->disk,index,f->current_index_block->block_in_disk);
+	CHECK_ERR(res==FAILED,"can't load the current index block from disk");
+	for(i=0;i<IB_max_entries;i++){
+		if(index->indexes [i]==MISSING){
+			index->indexes[i]=block;
+			f->fcb->num_entries++;
+			res=DiskDriver_writeBlock(f->sfs->disk,index,index->block_in_disk);
+			free(index);
+			CHECK_ERR(res==FAILED,"can't write the update to the current index block on disk");
+			res=DiskDriver_writeBlock(f->sfs->disk,f->fcb,f->fcb->header.block_in_disk);
+			CHECK_ERR(res==FAILED,"can't write the update to disk");
+			return SUCCESS;
 		}
 	}
 	//if we get here we need to allocate a new index block
@@ -954,6 +967,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	for(i=1;i<IB_max_entries;i++){
 		new_index_block->indexes[i]=MISSING;
 	}
+
 	//we update our current_index_block
 	f->current_index_block->block_in_disk=new_index;
 	f->current_index_block->next_block=MISSING;
@@ -1202,6 +1216,9 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 				//we update our current_block
 				memcpy(f->current_block,&(block->header),sizeof(BlockHeader));
 
+				//when allocating a new block our displacement is 0
+				displacement=0;
+
 			}
 		}else{
 			//if we get here we only need to load the block from disk
@@ -1276,7 +1293,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 int SimpleFS_read(FileHandle* f, void* data, int size){
 	int bytes_read=0;
 	//we calcualte the bytes to read, which are the minimum between the size of the buffer and the size of the file
-	int bytes_to_read=(size<f->fcb->fcb.size_in_bytes)?size:f->fcb->fcb.size_in_bytes;
+	int bytes_to_read=((size<f->fcb->fcb.size_in_bytes)?size:f->fcb->fcb.size_in_bytes);
 	FileBlock *block=(FileBlock*)malloc(sizeof(FileBlock));
 	//we calculate the maximum number of elements in athe block
 	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);

@@ -33,9 +33,12 @@ int shell_init(SimpleFS* fs){
   if(res==FAILED){
     printf("file non presente o filesystem non riconosiuto, formattare il file? (s,n)-> ");
     scanf("%c", &format);
-    while(format=='\n' && (format!='s' || format!='n')){
+    while(format!='s' && format!='n'){
+			//to get the \n left in stdin
+			getchar();
       printf("file non presente o filesystem non riconosiuto, formattare il file? (s,n)-> ");
       scanf("%c", &format);
+			printf("%c\n",format);
     }
     if(format!='s') return FAILED;
 
@@ -61,21 +64,23 @@ void shell_info(DiskDriver *disk){
   printf("num free blocks: %d\n",disk->header->free_blocks );
   printf("first free block: %d\n",disk->header->first_free_block );
 
-  int i,j,printed=0,print;
-  uint8_t mask;
-  printf("\t Bitmap of disk info\n");
-  print=disk->header->num_blocks;
-  for(i=0;i<(disk->header->num_blocks+7)/8;i++){
-    mask=128;
-    printf("block %d:\n",i);
-    for(j=0;j<8 && printed<print;j++){
-      printf("%c",((mask & disk->bmap->entries[i])? '1' :'0'));
-      mask=mask>>1;
-      printed++;
-    }
-    printf("\n");
-  }
+}
 
+void bitmap_info(DiskDriver *disk){
+	int i,j,printed=0,print;
+	uint8_t mask;
+	printf("\t Bitmap of disk info\n");
+	print=disk->header->num_blocks;
+	for(i=0;i<(disk->header->num_blocks+7)/8;i++){
+		mask=128;
+		printf("block %d:\n",i);
+		for(j=0;j<8 && printed<print;j++){
+			printf("%c",((mask & disk->bmap->entries[i])? '1' :'0'));
+			mask=mask>>1;
+			printed++;
+		}
+		printf("\n");
+	}
 }
 
 void shell_shutdown(SimpleFS* fs, DirectoryHandle* dh){
@@ -148,34 +153,36 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
   }
   argv[j]=NULL;
 
+	//TODO remove or comment when unneeded
   for(i=0; argv[i]!=NULL; i++) printf("argv[%d] >%s<\n",i, argv[i]);
 }
 
 int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
   int i=i_init;
   FileHandle* fh;
+	char* buffer = (char*)malloc(512*sizeof(char));
   for(; argv[i]!=NULL && strcmp(argv[i], "\0")!=0; i++){
     fh=SimpleFS_openFile(dh, argv[i]);
     if(fh==NULL) printf("Impossibile concatenare il file: %s\n",argv[i]);
     else{
       if(SimpleFS_seek(fh, 0) == FAILED) printf("Impossibile concatenare il file: %s\n",argv[i]);
       else{
-        char* buffer = (char*)malloc(512*sizeof(char));
         memset(buffer, 0, 512*sizeof(char));
         int byte_letti = SimpleFS_read(fh, buffer, 512);
         while(fh->fcb->fcb.size_in_bytes-byte_letti>0){
           printf("%s",buffer);
           memset(buffer, 0, 512*sizeof(char));
           byte_letti += SimpleFS_read(fh, buffer, 512);
-          buffer[byte_letti]='\0';
+          //TODO fix this
+          buffer[byte_letti%BLOCK_SIZE]='\0';
         }
-        printf("%s",buffer);
-        free(buffer);
+        printf("%s\n",buffer);
       }
       SimpleFS_close(fh);
     }
     if(strcmp(argv[i], "\0")!=0) free(argv[i]);
   }
+  free(buffer);
   return i;
 }
 
@@ -238,7 +245,7 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
       fflush(stdout);
     }
     printf("]\n");
-    
+
     if(res==-1 && errno != EINTR){
       if(resS!=FAILED){
         printf("Errore durante la scrittura del file su Simplefs\n");
@@ -281,7 +288,7 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
       printf("Impossibile leggere il file sorgente\n");
       return i;
     }
-    
+
     char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
     resS=0;
     printf("\n[");
@@ -297,13 +304,13 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
           printf("Impossibile scrivere su file\n");
           res = resS;
         }
-        
+
       }
       printf("=");
       fflush(stdout);
     }
     printf("]\n");
-    
+
     if(res==-1 && errno != EINTR){
       if(resS!=FAILED){
         printf("Errore durante la lettura del file su Simplefs\n");
@@ -393,6 +400,7 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
              "\t- /help per mostrare questo messaggio\n"
              "\t- /ls per mostrare l'elenco dei file contenuti nella working directory\n"
              "\t- /info per avere informazioni sul disco\n"
+						 "\t- /info -bmap per avere informazioni sulla bitmap del disco\n"
              "\t- /touch per creare un file vuoto\n"
              "\t- /echo per scrivere un messaggio su un file\n"
              "\t- /cat per concatenare i file e scriverli sullo schermo\n"
@@ -462,7 +470,11 @@ int do_cmd(SimpleFS* fs, DirectoryHandle* dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
       i+=do_copy_file(dh, argv, i+1);
     }
     if(argv[i]!=NULL && strcmp(argv[i], "info")==0){
-      shell_info(fs->disk);
+			if(argv[i+1]!=NULL && strcmp(argv[i+1], "-bmap")==0){
+				bitmap_info(fs->disk);
+			}else{
+				shell_info(fs->disk);
+			}
     }
     if(argv[i]!=NULL && strcmp(argv[i], "echo")==0){
       free(argv[i]);
