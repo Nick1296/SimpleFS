@@ -435,6 +435,102 @@ void cp_test_blocks(DirectoryHandle *dh){
   for(i=0;i<blocks;i++){
 	  SimpleFS_read(f,dst+(512*i),512*sizeof(char));
 	  res=memcmp(src+(512*i),dst+(512*i),512*sizeof(char));
+	  //fprintf(stderr,"block %d,result: %d\n",i,res);
+    finalres|=res;
+  }
+
+  printf("final result %d\n",finalres);
+  
+	SimpleFS_close(f);
+}
+
+void create_a_bigTree(DirectoryHandle* dh){
+
+  bitmap_info(dh->sfs->disk);
+
+  int i=0, ret=0, dim=600;
+  char name[4];
+  
+  for(i=0; i<dim; i++){
+    snprintf(name, 4*sizeof(char), "%d", i);
+    printf("SimpleFS_mkDir %s\n", name);
+    ret=SimpleFS_mkDir(dh, name);
+    if(ret==FAILED) printf("Errore in mkDir_test1\n");
+    if(ret!=FAILED) readDir_test(dh,i);
+    printf("SimpleFS_changeDir %s\n",name);
+    ret=SimpleFS_changeDir(dh, name);
+    if(ret==FAILED) printf("Errore in changeDir %s\n", name);
+  }
+
+  if(ret!=FAILED) readDir_test(dh,i);
+
+  bitmap_info(dh->sfs->disk);
+}
+
+void remove_bigTree(DirectoryHandle* dh){
+  bitmap_info(dh->sfs->disk);
+  int ret=0;
+  readDir_test(dh,0);
+  printf("SimpleFS_remove 0\n");
+  ret=SimpleFS_remove(dh, "0");
+  if(ret==FAILED) printf("Errore in remove 0\n");
+  if(ret!=FAILED) readDir_test(dh,0);
+
+  bitmap_info(dh->sfs->disk);
+}
+
+void create_someDir(DirectoryHandle* dh){
+
+  bitmap_info(dh->sfs->disk);
+
+  int i=0, ret=0, dim=600;
+  char name[4];
+  snprintf(name, 4*sizeof(char), "%d", i);
+  printf("SimpleFS_mkDir %s\n", name);
+  ret=SimpleFS_mkDir(dh, name);
+  if(ret==FAILED) printf("Errore in mkDir_test1\n");
+  if(ret!=FAILED) readDir_test(dh,i);
+  printf("SimpleFS_changeDir %s\n",name);
+  ret=SimpleFS_changeDir(dh, name);
+  if(ret==FAILED) printf("Errore in changeDir %s\n", name);
+  
+  for(i=1; i<dim; i++){
+    snprintf(name, 4*sizeof(char), "%d", i);
+    //printf("SimpleFS_mkDir %s\n", name);
+    ret=SimpleFS_mkDir(dh, name);
+    if(ret==FAILED) printf("Errore in mkDir_test1\n");
+  }
+
+  if(ret!=FAILED) readDir_test(dh,i);
+
+  bitmap_info(dh->sfs->disk);
+}
+
+void trunkedFile(DirectoryHandle *dh){
+  printf("Test with trunced file to overwrite part of file.");
+  int finalres=0,res;
+	FileHandle *f=SimpleFS_openFile(dh,"test");
+  // TODO command to create file for test this function
+  // cp war_peace.txt war_peace_trunc.txt
+  // truncate -s 1682569 war_peace_trunc.txt
+	int fd=open("./test/war_peace_trunc.txt",O_RDONLY,0666);
+	int i,dim = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+  int blocks=(dim+511)/512;
+  void *src=malloc(sizeof(char)*dim), *dst=malloc(sizeof(char)*dim);
+  int meta=f->fcb->fcb.size_in_bytes/2;
+  SimpleFS_seek(f, meta/512);
+  for(i=0;i<blocks;i++){
+    SimpleFS_read(f,dst+(512*i),512*sizeof(char));
+	  read(fd,src+(512*i),512);
+	  SimpleFS_write(f,src+(512*i),512*sizeof(char));
+  }
+  SimpleFS_seek(f,0);
+  lseek(fd, 0, SEEK_SET);
+  for(i=0;i<blocks;i++){
+    read(fd,src+(512*i),512);
+	  SimpleFS_read(f,dst+(512*i),512*sizeof(char));
+	  res=memcmp(src+(512*i),dst+(512*i),512*sizeof(char));
 	  fprintf(stderr,"block %d,result: %d\n",i,res);
     finalres|=res;
   }
@@ -463,7 +559,28 @@ int main(void) {
 	//read_seek_write_test(dh);
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
-  cp_test_blocks(dh);
+  //cp_test_blocks(dh);
+ 
+  /*create_a_bigTree(dh);
+  DiskDriver_shutdown(disk);
+  res=DiskDriver_load(fs->disk,fs->filename);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,disk);
+  remove_bigTree(dh);*/
+ 
+  create_someDir(dh);
+  DiskDriver_shutdown(disk);
+  res=DiskDriver_load(fs->disk,fs->filename);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,disk);
+  remove_bigTree(dh);
+
+  /*cp_test_blocks(dh);
+  DiskDriver_shutdown(disk);
+  res=DiskDriver_load(fs->disk,fs->filename);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,disk);
+  trunkedFile(dh);*/
 
   DiskDriver_shutdown(disk);
   free(disk);
