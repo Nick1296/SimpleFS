@@ -235,7 +235,9 @@ void read_seek_write_test(DirectoryHandle* dh){
 	FileHandle *f=SimpleFS_createFile(dh,"rsw");
 	char data1[1024],data2[1024];
 	int i,res=1,out=0;
-	for(i=0;i<1024;i++){
+  data1[1023]='\0';
+  data2[1023]='\0';
+	for(i=0;i<1023;i++){
 		data1[i]='a';
 	}
 	memset(data2,0,1024*sizeof(char));
@@ -258,7 +260,7 @@ void read_seek_write_test(DirectoryHandle* dh){
 	printf("now we move the cursor to 512 byte and we write and read\n");
 	res=SimpleFS_seek(f,512);
 	printf("seek result :%d\n",res);
-	for(i=0;i<1024;i++){
+	for(i=0;i<1023;i++){
 		data1[i]='b';
 	}
 	out=SimpleFS_write(f,data1,512);
@@ -286,9 +288,9 @@ void read_seek_write_test(DirectoryHandle* dh){
 	printf("result :%d\n",res);
 	bitmap_info(f->sfs->disk);
 	printf("we write a the begining of the file but we use less block than before\n");
-	for(i=0;i<1024;i++){
+	for(i=0;i<1023;i++){
 		data1[i]='c';
-		data2[i]=0;
+		data2[i]='\0';
 	}
 	res=SimpleFS_seek(f,0);
 	printf("seek result :%d\n",res);
@@ -415,6 +417,33 @@ void cp_test(DirectoryHandle *dh){
 	SimpleFS_close(f);
 }
 
+void cp_test_blocks(DirectoryHandle *dh){
+  int finalres=0,res;
+	printf("to test the FS we load a file from disk we write it on our disk we re-read it and check if it's correct\n");
+  printf("we use blocks of 512 bytes\n");
+	FileHandle *f=SimpleFS_createFile(dh,"test");
+	int fd=open("./test/war_peace.txt",O_RDONLY,0666);
+	int i,dim = lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+  int blocks=(dim+511)/512;
+  void *src=malloc(sizeof(char)*dim), *dst=malloc(sizeof(char)*dim);
+  for(i=0;i<blocks;i++){
+	  read(fd,src+(512*i),512);
+	  SimpleFS_write(f,src+(512*i),512*sizeof(char));
+  }
+  SimpleFS_seek(f,0);
+  for(i=0;i<blocks;i++){
+	  SimpleFS_read(f,dst+(512*i),512*sizeof(char));
+	  res=memcmp(src+(512*i),dst+(512*i),512*sizeof(char));
+	  fprintf(stderr,"block %d,result: %d\n",i,res);
+    finalres|=res;
+  }
+
+  printf("final result %d\n",finalres);
+  
+	SimpleFS_close(f);
+}
+
 int main(void) {
   int res;
   DiskDriver *disk=(DiskDriver*)malloc(sizeof(DiskDriver));
@@ -433,8 +462,8 @@ int main(void) {
   //createFile_openFile_closeFile_test(dh);
 	//read_seek_write_test(dh);
   //readDir_changeDir_mkDir_remove_test(dh);
-	cp_test(dh);
-
+	//cp_test(dh);
+  cp_test_blocks(dh);
 
   DiskDriver_shutdown(disk);
   free(disk);

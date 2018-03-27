@@ -1176,7 +1176,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	f->fcb->fcb.size_in_bytes=f->pos_in_file;
 
 	while(blocks_needed>0 && res!=FAILED){
-		displacement=f->pos_in_file%DB_max_elements;
+		displacement=(f->pos_in_file+bytes_written)%DB_max_elements;
 		//we clear our block in memory to avoid writing cluttter on disk
 		memset(block,0,sizeof(FileBlock));
 		if(current_block_written && !overwrite){
@@ -1277,26 +1277,35 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 int SimpleFS_read(FileHandle* f, void* data, int size){
 	int bytes_read=0;
 	//we calcualte the bytes to read, which are the minimum between the size of the buffer and the size of the file
-	int bytes_to_read=((size<f->fcb->fcb.size_in_bytes)?size:f->fcb->fcb.size_in_bytes);
+	int bytes_to_read=((size<f->fcb->fcb.size_in_bytes-f->pos_in_file)?size:f->fcb->fcb.size_in_bytes-f->pos_in_file);
 	FileBlock *block=(FileBlock*)malloc(sizeof(FileBlock));
 	//we calculate the maximum number of elements in athe block
 	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
 	//we calculate thedisplacement in the first block;
 	int displacement;
-	//we could need to read more than one block so this variable will tell us if
-	//we need to move one block further
-	int current_block_read=0;
-	//if we are at the beginning of the file we move to the first data block
-	if(f->current_block->block_in_file==0){
-		current_block_read=1;
-	}
 	int res=SUCCESS;
 	//now we start reading
 	while(bytes_read<bytes_to_read && res==SUCCESS){
-		displacement=f->pos_in_file%DB_max_elements;
+		displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_read);;
+		
 		//we clean our block in memory
 		memset(block,0,sizeof(FileBlock));
-		if(current_block_read){
+		// we read the current block
+		res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
+		//now we can read the data
+		if(bytes_to_read-bytes_read>DB_max_elements-displacement && res==SUCCESS){
+			//we read all the block
+			memcpy(data+bytes_read,(block->data)+displacement,DB_max_elements-displacement);
+			//we update the number of bytes read
+			bytes_read+=DB_max_elements-displacement;
+		}else{
+			//we read only one portion of the block
+			memcpy(data+bytes_read,block->data+displacement,bytes_to_read-bytes_read);
+			//we update the number of bytes read
+			bytes_read+=bytes_to_read-bytes_read;
+		}
+
+		if(bytes_read<bytes_to_read){
 			//we move one block further
 			if(f->current_block->next_block==MISSING){
 				//if the next block is missing we can't read further
@@ -1309,22 +1318,7 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 				//we fetch the next_block
 				memcpy(f->current_block,block,sizeof(BlockHeader));
 			}
-		}else{
-			res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
 		}
-		//now we can read the data
-		if(bytes_to_read-bytes_read>DB_max_elements-displacement && res==SUCCESS){
-			//we read all the block
-			memcpy(data+bytes_read,block->data+displacement,DB_max_elements-displacement);
-			//we update the number of bytes read
-			bytes_read+=DB_max_elements-displacement;
-		}else{
-			//we read only one portion of the block
-			memcpy(data+bytes_read,block->data+displacement,bytes_to_read-bytes_read);
-			//we update the number of bytes read
-			bytes_read+=bytes_to_read-bytes_read;
-		}
-		current_block_read=1;
 	}
 
 	//we update our position in the file
