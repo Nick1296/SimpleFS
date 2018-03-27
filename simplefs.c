@@ -1164,11 +1164,17 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	int current_block_written=0;
 	// we must check if there is a block after the current block of data to ber overwritten
 	int overwrite=1;
+	//we check if the current block is the fcb or if the last block is full
 	if(f->current_block->block_in_file==0){
 		current_block_written=1;
 		overwrite=0;
 		//we initialize the last block to be able to link the FFB to the next data block
 		memcpy(last_block,f->fcb,BLOCK_SIZE);
+	}else if(f->pos_in_file==f->fcb->fcb.size_in_blocks*DB_max_elements){
+		overwrite=0;
+		current_block_written=1;
+		res=DiskDriver_readBlock(f->sfs->disk,last_block,f->current_block->block_in_disk);
+		CHECK_ERR(res==FAILED,"can't read the current block");
 	}
 
 	//we set the current size of the file and the position in the file accordin to the current block
@@ -1176,8 +1182,12 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	f->fcb->fcb.size_in_bytes=f->pos_in_file;
 
 	while(blocks_needed>0 && res!=FAILED){
-		displacement=(f->pos_in_file+bytes_written)%DB_max_elements;
-		//we clear our block in memory to avoid writing cluttter on disk
+		if(overwrite==0 && current_block_written==1){
+			displacement=0;
+		}else{
+			displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_written);
+		}
+		//we clear our block in memory to avoid writing clutter on disk
 		memset(block,0,sizeof(FileBlock));
 		if(current_block_written && !overwrite){
 			//in this case we are writing at the beginning of the file
@@ -1286,7 +1296,7 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 	int res=SUCCESS;
 	//now we start reading
 	while(bytes_read<bytes_to_read && res==SUCCESS){
-		displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_read);;
+		displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_read);
 		
 		//we clean our block in memory
 		memset(block,0,sizeof(FileBlock));
