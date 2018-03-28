@@ -1182,11 +1182,6 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	f->fcb->fcb.size_in_bytes=f->pos_in_file;
 
 	while(blocks_needed>0 && res!=FAILED){
-		if(overwrite==0 && current_block_written==1){
-			displacement=0;
-		}else{
-			displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_written);
-		}
 		//we clear our block in memory to avoid writing clutter on disk
 		memset(block,0,sizeof(FileBlock));
 		if(current_block_written && !overwrite){
@@ -1223,6 +1218,11 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 			}else{
 				res=DiskDriver_readBlock(f->sfs->disk,block,f->current_block->block_in_disk);
 			}
+		}
+		if(overwrite==0 && current_block_written==1){
+			displacement=0;
+		}else{
+			displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_written);
 		}
 		//now we need to write in the block
 		if(res!=FAILED){
@@ -1297,7 +1297,7 @@ int SimpleFS_read(FileHandle* f, void* data, int size){
 	//now we start reading
 	while(bytes_read<bytes_to_read && res==SUCCESS){
 		displacement=(f->pos_in_file-DB_max_elements*(f->current_block->block_in_file-1)+bytes_read);
-		
+
 		//we clean our block in memory
 		memset(block,0,sizeof(FileBlock));
 		// we read the current block

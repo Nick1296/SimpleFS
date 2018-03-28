@@ -415,6 +415,8 @@ void cp_test(DirectoryHandle *dh){
 	int res=memcmp(src,dst,dim*sizeof(char));
 	printf("result: %d\n",res);
 	SimpleFS_close(f);
+	free(src);
+	free(dst);
 }
 
 void cp_test_blocks(DirectoryHandle *dh){
@@ -440,8 +442,10 @@ void cp_test_blocks(DirectoryHandle *dh){
   }
 
   printf("final result %d\n",finalres);
-  
+
 	SimpleFS_close(f);
+	free(src);
+	free(dst);
 }
 
 void create_a_bigTree(DirectoryHandle* dh){
@@ -450,7 +454,7 @@ void create_a_bigTree(DirectoryHandle* dh){
 
   int i=0, ret=0, dim=600;
   char name[4];
-  
+
   for(i=0; i<dim; i++){
     snprintf(name, 4*sizeof(char), "%d", i);
     printf("SimpleFS_mkDir %s\n", name);
@@ -465,6 +469,7 @@ void create_a_bigTree(DirectoryHandle* dh){
   if(ret!=FAILED) readDir_test(dh,i);
 
   bitmap_info(dh->sfs->disk);
+
 }
 
 void remove_bigTree(DirectoryHandle* dh){
@@ -493,7 +498,7 @@ void create_someDir(DirectoryHandle* dh){
   printf("SimpleFS_changeDir %s\n",name);
   ret=SimpleFS_changeDir(dh, name);
   if(ret==FAILED) printf("Errore in changeDir %s\n", name);
-  
+
   for(i=1; i<dim; i++){
     snprintf(name, 4*sizeof(char), "%d", i);
     //printf("SimpleFS_mkDir %s\n", name);
@@ -536,7 +541,7 @@ void trunkedFile(DirectoryHandle *dh){
   }
 
   printf("final result %d\n",finalres);
-  
+
 	SimpleFS_close(f);
 }
 
@@ -560,20 +565,20 @@ int main(void) {
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
   //cp_test_blocks(dh);
- 
+
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,disk);
   remove_bigTree(dh);*/
- 
-  create_someDir(dh);
+
+  /*create_someDir(dh);
   DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,disk);
-  remove_bigTree(dh);
+  remove_bigTree(dh);*/
 
   /*cp_test_blocks(dh);
   DiskDriver_shutdown(disk);
