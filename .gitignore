@@ -37,6 +37,7 @@ simplefs_test
 *.x86_64
 *.hex
 shell
+result
 
 # Debug files
 *.dSYM/

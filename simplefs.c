@@ -171,6 +171,104 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 	return result;
 }
 
+void Dir_addentry(DirectoryHandle *d,int file_block){
+	//we know how many entries has a directory but we don't know how many entries per block we have so we calculate it
+	int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
+	int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
+	int res;
+	//we use the current block, pos_in_block and pos_in_dir to determine the position where we
+	//must write the new file in the directory
+	//but it could be uninitialized!
+	DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
+	while(d->current_block->next_block!=MISSING){
+		res=DiskDriver_readBlock(d->sfs->disk,dir,d->current_block->next_block);
+		CHECK_ERR(res==FAILED,"can't read the directory block");
+		memcpy(d->current_block,&(dir->header),sizeof(BlockHeader));
+	}
+	d->pos_in_dir=d->dcb->num_entries;
+	if(d->current_block->block_in_file==0){
+		d->pos_in_block=d->pos_in_dir%FDB_max_elements-1;
+	}else{
+		d->pos_in_block=(d->pos_in_dir-FDB_max_elements-1)%DB_max_elements;
+	}
+
+
+	//we get the index of the block in which we must update the data
+	int dir_block=d->current_block->block_in_file;
+	int dir_block_displacement;
+	if(d->dcb->num_entries==0){
+		dir_block_displacement=0;
+	}else{
+		dir_block_displacement=d->pos_in_block+1;
+	}
+
+
+	if(dir_block==0){
+		if(dir_block_displacement<FDB_max_elements){
+			//in this case we can add the file directly in the FDB
+			d->dcb->file_blocks[dir_block_displacement]=file_block;
+		}else{
+			//in this case we must allocate a directory block
+			dir_block_displacement=0;
+
+			int new_dir_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
+			CHECK_ERR(new_dir_block==FAILED,"full disk on directory update");
+			dir->header.block_in_file=d->dcb->header.block_in_file+1;
+			dir->header.next_block=MISSING;
+			dir->header.previous_block=d->dcb->header.block_in_disk;
+			dir->file_blocks[dir_block_displacement]=file_block;
+			d->dcb->header.next_block=new_dir_block;
+			//we update the current_block
+			memcpy(d->current_block,&(dir->header),sizeof(BlockHeader));
+			res=DiskDriver_writeBlock(d->sfs->disk,dir,new_dir_block);
+			CHECK_ERR(res==FAILED,"can't write the 2nd directory block");
+		}
+		free(dir);
+	}else{
+		//we save the current block in disk becauseit could change
+		int current_block=d->current_block->block_in_disk;
+		// now we must check if in the last directory_block we have room for one more file
+		if(dir_block_displacement<DB_max_elements){
+			//in this case we can add the file directly in the DB
+			dir->file_blocks[dir_block_displacement]=file_block;
+			CHECK_ERR(res==-1,"can't write the 2nd directory block");
+		}else{
+			int new_dir_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
+			CHECK_ERR(new_dir_block,"full disk on directory update");
+			dir_block_displacement=0;
+			DirectoryBlock *new_dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
+			new_dir->header.block_in_file=dir->header.block_in_file+1;
+			new_dir->header.next_block=MISSING;
+			new_dir->header.previous_block=d->current_block->block_in_disk;
+			new_dir->file_blocks[dir_block_displacement]=file_block;
+			dir->header.next_block=new_dir_block;
+			//we update the current_block
+			memcpy(d->current_block,&(new_dir->header),sizeof(BlockHeader));
+			//we write the new dir_block
+			res=DiskDriver_writeBlock(d->sfs->disk,new_dir,new_dir_block);
+			free(new_dir);
+			if(res==FAILED){
+				free(dir);
+				CHECK_ERR(res==FAILED,"can't write the new dir_block on disk");
+			}
+
+		}
+		//we write the updated dir_block
+		res=DiskDriver_writeBlock(d->sfs->disk,dir,current_block);
+		free(dir);
+		CHECK_ERR(res==FAILED,"can't write the updated dir_block on disk");
+	}
+	//we update the metedata into the FDB
+	d->dcb->num_entries++;
+
+	//we update the metadata into the DirectoryHandle
+	d->pos_in_dir++;
+	d->pos_in_block=dir_block_displacement;
+	//we write the updated FirstDirectoryBlock
+	res=DiskDriver_writeBlock(d->sfs->disk,d->dcb,d->dcb->header.block_in_disk);
+	CHECK_ERR(res==FAILED,"can't write the updated FirstDirectoryBlock on disk");
+}
+
 FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 
   //firstly we check if we have at least two free block in the disk
@@ -181,9 +279,6 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
     return NULL;
   }
   int res;
-	//we know how many entries has a directory but we don't know how many entries per block we have so we calculate it
-	int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
-	int DB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 
 	SearchResult *search=SimpleFS_search(d,filename);
 	//if the file already exists we return NULL
@@ -228,106 +323,8 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
   CHECK_ERR(res==FAILED,"can't write on the given free block");
 
   //we update the metadata into the directory
+	Dir_addentry(d,file_block);
 
-	//we use the current block, pos_in_block and pos_in_dir to determine the position where we
-	//must write the new file in the directory
-	//but it could be uninitialized!
-	DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
-		while(d->current_block->next_block!=MISSING){
-			DiskDriver_readBlock(d->sfs->disk,dir,d->current_block->next_block);
-			CHECK_ERR(res==FAILED,"can't read the directory block");
-			memcpy(d->current_block,&(dir->header),sizeof(BlockHeader));
-		}
-		d->pos_in_dir=d->dcb->num_entries;
-		if(d->current_block->block_in_file==0){
-			d->pos_in_block=d->pos_in_dir%FDB_max_elements-1;
-		}else{
-			d->pos_in_block=(d->pos_in_dir-FDB_max_elements-1)%DB_max_elements;
-		}
-
-
-  //we get the index of the block in which we must update the data
-  int dir_block=d->current_block->block_in_file;
-  int dir_block_displacement;
-	if(d->dcb->num_entries==0){
-		dir_block_displacement=0;
-	}else{
-		dir_block_displacement=d->pos_in_block+1;
-	}
-
-
-	if(dir_block==0){
-		if(dir_block_displacement<FDB_max_elements){
-			//in this case we can add the file directly in the FDB
-			d->dcb->file_blocks[dir_block_displacement]=file_block;
-		}else{
-			//in this case we must allocate a directory block
-			dir_block_displacement=0;
-
-			int new_dir_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
-			if(new_dir_block==FAILED){
-				free(file);
-				CHECK_ERR(new_dir_block==FAILED,"full disk on directory update");
-			}
-			dir->header.block_in_file=d->dcb->header.block_in_file+1;
-			dir->header.next_block=MISSING;
-			dir->header.previous_block=d->dcb->header.block_in_disk;
-			dir->file_blocks[dir_block_displacement]=file_block;
-			d->dcb->header.next_block=new_dir_block;
-			//we update the current_block
-			memcpy(d->current_block,&(dir->header),sizeof(BlockHeader));
-			res=DiskDriver_writeBlock(d->sfs->disk,dir,new_dir_block);
-			CHECK_ERR(res==FAILED,"can't write the 2nd directory block");
-		}
-		free(dir);
-	}else{
-		// now we must check if in the last directory_block we have room for one more file
-		if(dir_block_displacement<DB_max_elements){
-			//in this case we can add the file directly in the DB
-			dir->file_blocks[dir_block_displacement]=file_block;
-			CHECK_ERR(res==-1,"can't write the 2nd directory block");
-		}else{
-			int new_dir_block=DiskDriver_getFreeBlock(d->sfs->disk,0);
-			CHECK_ERR(new_dir_block,"full disk on directory update");
-			dir_block_displacement=0;
-			DirectoryBlock *new_dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
-			new_dir->header.block_in_file=dir->header.block_in_file+1;
-			new_dir->header.next_block=MISSING;
-			new_dir->header.previous_block=search->dir_block_in_disk;
-			new_dir->file_blocks[dir_block_displacement]=file_block;
-			dir->header.next_block=new_dir_block;
-			//we update the current_block
-			memcpy(d->current_block,&(new_dir->header),sizeof(BlockHeader));
-			//we write the new dir_block
-			res=DiskDriver_writeBlock(d->sfs->disk,&new_dir,new_dir_block);
-			free(new_dir);
-			if(res==FAILED){
-				free(file);
-				free(dir);
-				CHECK_ERR(res==FAILED,"can't write the new dir_block on disk");
-			}
-
-		}
-		//we write the updated dir_block
-		res=DiskDriver_writeBlock(d->sfs->disk,dir,search->dir_block_in_disk);
-		free(dir);
-		if(res==FAILED){
-			free(file);
-			CHECK_ERR(res==FAILED,"can't write the updated dir_block on disk");
-		}
-	}
-	//we update the metedata into the FDB
-  d->dcb->num_entries++;
-
-	//we update the metadata into the DirectoryHandle
-	d->pos_in_dir++;
-	d->pos_in_block=dir_block_displacement;
-  //we write the updated FirstDirectoryBlock
-  res=DiskDriver_writeBlock(d->sfs->disk,d->dcb,d->dcb->header.block_in_disk);
-	if(res==FAILED){
-		free(file);
-		CHECK_ERR(res==FAILED,"can't write the updated FirstDirectoryBlock on disk");
-	}
   //after creating the file we create a file handle
 	FileHandle *fh=(FileHandle*)malloc(sizeof(FileHandle));
 	//the current block in the creation is the header of the fcb

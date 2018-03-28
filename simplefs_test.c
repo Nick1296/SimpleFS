@@ -511,6 +511,26 @@ void create_someDir(DirectoryHandle* dh){
   bitmap_info(dh->sfs->disk);
 }
 
+void create_someFiles(DirectoryHandle* dh){
+	bitmap_info(dh->sfs->disk);
+
+	int i=0, ret=0, dim=600;
+	char name[4];
+	snprintf(name, 4*sizeof(char), "%d", i);
+	FileHandle *f;
+	for(i=0; i<dim; i++){
+		snprintf(name, 4*sizeof(char), "%d", i);
+		printf("SimpleFS_Createfile %s\n", name);
+		f=SimpleFS_createFile(dh, name);
+		if(ret==FAILED) printf("Errore in create file\n");
+		SimpleFS_close(f);
+	}
+
+	if(ret!=FAILED) readDir_test(dh,i);
+
+	bitmap_info(dh->sfs->disk);
+}
+
 void trunkedFile(DirectoryHandle *dh){
   printf("Test with trunced file to overwrite part of file.");
   int finalres=0,res;
@@ -551,7 +571,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=7000;
+  fs->block_num=1000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -565,6 +585,7 @@ int main(void) {
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
   //cp_test_blocks(dh);
+	create_someFiles(dh);
 
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
