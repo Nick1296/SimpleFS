@@ -514,15 +514,17 @@ void create_someDir(DirectoryHandle* dh){
 void create_someFiles(DirectoryHandle* dh){
 	bitmap_info(dh->sfs->disk);
 
-	int i=0, ret=0, dim=600;
-	char name[4];
+	int i=0, ret=0, dim=600,length=512;
+	char name[4],data[length];
+	memset(data,65,sizeof(char)*length);
 	snprintf(name, 4*sizeof(char), "%d", i);
 	FileHandle *f;
 	for(i=0; i<dim; i++){
 		snprintf(name, 4*sizeof(char), "%d", i);
 		printf("SimpleFS_Createfile %s\n", name);
 		f=SimpleFS_createFile(dh, name);
-		if(ret==FAILED) printf("Errore in create file\n");
+		ret=SimpleFS_write(f,data,length);
+		if(ret!=length) printf("Errore in create file\n");
 		SimpleFS_close(f);
 	}
 
@@ -571,7 +573,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=1000;
+  fs->block_num=2000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -594,8 +596,8 @@ int main(void) {
   dh=SimpleFS_init(fs,disk);
   remove_bigTree(dh);*/
 
-  /*create_someDir(dh);
-  DiskDriver_shutdown(disk);
+  //create_someDir(dh);
+  /*DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,disk);
