@@ -423,7 +423,7 @@ void cp_test_blocks(DirectoryHandle *dh){
   int finalres=0,res;
 	printf("to test the FS we load a file from disk we write it on our disk we re-read it and check if it's correct\n");
   printf("we use blocks of 512 bytes\n");
-	FileHandle *f=SimpleFS_createFile(dh,"test");
+	FileHandle *f=SimpleFS_createFile(dh,"test1");
 	int fd=open("./test/war_peace.txt",O_RDONLY,0666);
 	int i,dim = lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
@@ -573,7 +573,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=2000;
+  fs->block_num=20000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -585,11 +585,10 @@ int main(void) {
   //createFile_openFile_closeFile_test(dh);
 	//read_seek_write_test(dh);
   //readDir_changeDir_mkDir_remove_test(dh);
-	//cp_test(dh);
-  //cp_test_blocks(dh);
+	cp_test(dh);
 	create_someFiles(dh);
-	//impleFS_mkDir(dh,"ciao");
-	//SimpleFS_changeDir(dh,"ciao");
+  cp_test_blocks(dh);
+
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);

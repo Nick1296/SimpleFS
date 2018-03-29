@@ -1017,7 +1017,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 //given the block num in the file it returns the block in disk/FAILED
 int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	//we check that we have been given valid data
-	if(f==NULL || block_in_file<=0){
+	if(f==NULL || block_in_file<0){
 		return FAILED;
 	}
 
@@ -1159,7 +1159,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 // returns pos on success -1 on error (file too short)
 int SimpleFS_seek(FileHandle* f, int pos){
 	//we check if the position is within the file dimension
-	if(f==NULL || pos<=0 ||pos>f->fcb->fcb.size_in_bytes){
+	if(f==NULL || pos<0 ||pos>f->fcb->fcb.size_in_bytes){
 		return FAILED;
 	}
 	//we calculate the block in which we need to move
