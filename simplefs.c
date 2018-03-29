@@ -102,7 +102,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 	int Dir_Block_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 
 	// in here we will save the read FirstFileBlock/FirstDirectoryBlock to check if has a matching file name
-	void* element=malloc(BLOCK_SIZE);
+	FirstFileBlock* element=malloc(sizeof(FirstFileBlock));
 	//we save the number of entries in the directory
 	int dir_entries=d->dcb->num_entries;
 
@@ -117,7 +117,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 			CHECK_ERR(res==FAILED,"the directory contains a free block in the entry list");
 		}
 		//we check if the file has the same name of the file we want to create
-		searching=strncmp(((FileControlBlock*)(element+sizeof(BlockHeader)))->name,name,strlen(name));
+		searching=strncmp(element->fcb.name,name,strlen(name));
 	}
 	if(searching==0){
 		result->result=SUCCESS;
@@ -165,7 +165,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 			}
 
 			//we check if the file has the same name of the file we want to create
-			searching=strncmp(((FileControlBlock*)(element+sizeof(BlockHeader)))->name,name,strlen(name));
+			searching=strncmp(element->fcb.name,name,strlen(name));
 		}
 		if(searching==0){
 			result->type=FILE;
@@ -178,9 +178,6 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 		//now we need to change block and to adjust the number of remaining entries to check
 		dir_entries-=Dir_Block_max_elements;
 		next_block=dir->header.next_block;
-	}
-	if(element!=NULL){
-		free(element);
 	}
 	return result;
 }
@@ -351,7 +348,7 @@ FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
 
 	//initializing the entries of the index cointained in the fcb
 	file->num_entries=0;
-	memset(file->blocks,-1,sizeof(int)*((BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)));
+	memset(file->blocks,MISSING,sizeof(int)*((BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)));
 
   //we create the file on disk
   res=DiskDriver_writeBlock(d->sfs->disk,file,file_block);
@@ -503,7 +500,8 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
 
     // Copy the calculated information
     d->sfs = handle->sfs;
-		memcpy(d->current_block,&(file->header),sizeof(BlockHeader));
+	memcpy(d->current_block,&(file->header),sizeof(BlockHeader));
+	memcpy(d->dcb,handle->dcb,sizeof(FirstDirectoryBlock));
     d->dcb=handle->dcb;
     d->pos_in_dir=handle->pos_in_dir;
     d->pos_in_block=handle->pos_in_block;
@@ -556,16 +554,17 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
   root->fcb.directory_block=d->dcb->header.block_in_disk;
   root->header.block_in_disk=rootblock;
   strncpy(root->fcb.name, dirname, strlen(dirname));
-  root->fcb.size_in_blocks=1;
-  root->fcb.size_in_bytes=sizeof(FirstDirectoryBlock);
+  root->fcb.size_in_blocks=0;
+  root->fcb.size_in_bytes=0;
   root->fcb.is_dir=DIRECTORY;
 
   //initializing the entries of the directory
   root->num_entries=0;
-  int i=0;
-  for(i=0;i<(int)((BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int));i++){
+  memset(root->file_blocks,MISSING,((BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int))*sizeof(int));
+	/*int i=0;
+		for(i=0;i<(int)((BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int));i++){
     root->file_blocks[i]=MISSING;
-  }
+  }*/
 
   //we update the parent directory
   Dir_addentry(d,root->header.block_in_disk);
