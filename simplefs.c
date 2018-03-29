@@ -1,6 +1,10 @@
 #include "simplefs.h"
 
 void SimpleFS_format(SimpleFS* fs){
+	//we check that we have been given valid data
+	if(fs==NULL){
+		return;
+	}
     // disk initializing in which we clean the bitmap
     DiskDriver_init(fs->disk,fs->filename,fs->block_num);
 
@@ -43,6 +47,10 @@ void SimpleFS_format(SimpleFS* fs){
 // initializes a file system on an already made disk
 // returns a handle to the top level directory stored in the first block
 DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk){
+	//we check that we have been given valid data
+	if(fs==NULL || disk==NULL){
+		return NULL;
+	}
   fs->disk=disk;
   int res,current_block=disk->header->bitmap_blocks;
   FirstDirectoryBlock* block=(FirstDirectoryBlock*) malloc(sizeof(FirstDirectoryBlock));
@@ -70,6 +78,10 @@ DirectoryHandle* SimpleFS_init(SimpleFS* fs, DiskDriver* disk){
 
 // searches for a file or a directory given a DirectoryHandle and the element name
 SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
+	//we check that we have been given valid data
+	if(d==NULL || strlen(name)==0){
+		return NULL;
+	}
 
 	// we  will save our results and all our intermediate variables in here
 	SearchResult *result=(SearchResult*) malloc(sizeof(SearchResult));
@@ -113,6 +125,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 		result->type=FILE;
 		result->last_visited_dir_block=NULL;
 		result->element=element;
+		result->pos_in_block=i;
 		return result;
 	}
 	//now we search in the other directory blocks which compose the directory list
@@ -160,6 +173,7 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 			result->element=element;
 			result->last_visited_dir_block=dir;
 			result->result=SUCCESS;
+			result->pos_in_block=i;
 		}
 		//now we need to change block and to adjust the number of remaining entries to check
 		dir_entries-=Dir_Block_max_elements;
@@ -172,6 +186,10 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 }
 
 void Dir_addentry(DirectoryHandle *d,int file_block){
+	//we check that we have been given valid data
+	if(d==NULL || file_block<=0 || file_block>=d->sfs->disk->header->num_blocks){
+		return ;
+	}
 	//we know how many entries has a directory but we don't know how many entries per block we have so we calculate it
 	int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
 	int Dir_Block_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
@@ -227,8 +245,11 @@ void Dir_addentry(DirectoryHandle *d,int file_block){
 			dir->header.next_block=MISSING;
 			dir->header.block_in_disk=new_dir_block;
 			dir->header.previous_block=d->dcb->header.block_in_disk;
+			//we set the chain to MISSING
+			memset(dir->file_blocks,MISSING,sizeof(int)*Dir_Block_max_elements);
 			dir->file_blocks[dir_block_displacement]=file_block;
 			d->dcb->header.next_block=new_dir_block;
+			//we set the chain to MISSING
 			//we update the current_block
 			memcpy(d->current_block,&(dir->header),sizeof(BlockHeader));
 			res=DiskDriver_writeBlock(d->sfs->disk,dir,new_dir_block);
@@ -251,6 +272,8 @@ void Dir_addentry(DirectoryHandle *d,int file_block){
 			new_dir->header.block_in_disk=new_dir_block;
 			new_dir->header.next_block=MISSING;
 			new_dir->header.previous_block=d->current_block->block_in_disk;
+			//we set the chain to MISSING
+			memset(new_dir->file_blocks,MISSING,sizeof(int)*Dir_Block_max_elements);
 			new_dir->file_blocks[dir_block_displacement]=file_block;
 			dir->header.next_block=new_dir_block;
 			//we update the current_block
@@ -281,6 +304,10 @@ void Dir_addentry(DirectoryHandle *d,int file_block){
 }
 
 FileHandle* SimpleFS_createFile(DirectoryHandle* d, const char* filename){
+	//we check that we have been given valid data
+	if(d==NULL || strlen(filename)==0){
+		return NULL;
+	}
 
   //firstly we check if we have at least two free block in the disk
   //one for the FirstFileBlock
@@ -422,7 +449,7 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
     handle->sfs=d->sfs;
     handle->dcb=d->directory;
     handle->pos_in_dir=0;
-    handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+    handle->pos_in_block=0;
 
     // Check if directory have parent directory
     if(d->directory->fcb.directory_block!=MISSING){
@@ -540,7 +567,7 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
     root->file_blocks[i]=MISSING;
   }
 
-  //we update the parten directory
+  //we update the parent directory
   Dir_addentry(d,root->header.block_in_disk);
   int res;
   //writing the directory on disk
@@ -645,7 +672,7 @@ int SimpleFS_remove_rec(DirectoryHandle* d){
       handle->dcb=file;
       handle->directory = d->dcb;
       handle->pos_in_dir=0;
-      handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+      handle->pos_in_block=0;
       res=SimpleFS_remove_rec(handle);
       if(res==FAILED){
         free(file);
@@ -741,7 +768,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
     handle->dcb=file;
     handle->directory = d->dcb;
     handle->pos_in_dir=0;
-    handle->pos_in_block=sizeof(BlockHeader)+sizeof(FileControlBlock)+sizeof(int);
+    handle->pos_in_block=0;
 
     res=SimpleFS_remove_rec(handle);
     if(res==FAILED){
@@ -831,6 +858,10 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 
 
 FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
+	//we check that we have been given valid data
+	if(d==NULL || strlen(filename)==0){
+		return NULL;
+	}
 	//firstly we need to search the file we want to open
 	SearchResult *search=SimpleFS_search(d,filename);
 	if(search->result==FAILED){
@@ -866,6 +897,10 @@ FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
 }
 
 void SimpleFS_close(FileHandle* f){
+	//we check that we have been given valid data
+	if(f==NULL){
+		return;
+	}
 
 	//we deallocate BlockHeader which indicates the current data block in the file
 	free(f->current_block);
@@ -881,6 +916,11 @@ void SimpleFS_close(FileHandle* f){
 
 // we add a block in the index list of the file returning FAILED/SUCCESS
 int SimpleFS_addIndex(FileHandle *f,int block){
+	//we check that we have been given valid data
+	if(f==NULL  || block<=0 || block>=f->sfs->disk->header->num_blocks){
+		return FAILED;
+	}
+
 	int i,res;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
@@ -977,6 +1017,11 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 
 //given the block num in the file it returns the block in disk/FAILED
 int SimpleFS_getIndex(FileHandle *f,int block_in_file){
+	//we check that we have been given valid data
+	if(f==NULL || block_in_file<=0){
+		return FAILED;
+	}
+
 	int i,res,index_num,block_in_disk=FAILED;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
@@ -1039,6 +1084,10 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 
 // this function clears the index list starting from the provided block in file
 void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
+	//we check that we have been given valid data
+	if(f==NULL || block_in_file<=0){
+		return;
+	}
 	int i,res,stop=0;
 	int displacement;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
@@ -1111,7 +1160,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 // returns pos on success -1 on error (file too short)
 int SimpleFS_seek(FileHandle* f, int pos){
 	//we check if the position is within the file dimension
-	if(pos>f->fcb->fcb.size_in_bytes){
+	if(f==NULL || pos<=0 ||pos>f->fcb->fcb.size_in_bytes){
 		return FAILED;
 	}
 	//we calculate the block in which we need to move
@@ -1145,6 +1194,10 @@ int SimpleFS_seek(FileHandle* f, int pos){
 // returns the number of bytes written
 //the cursor at the end of the write points to the last byte written
 int SimpleFS_write(FileHandle* f, void* data, int size){
+	//we check that we have been given valid data
+	if(f==NULL || data==NULL || size<=0){
+		return 0;
+	}
 	//we calculate how many byte can fill a data block
 	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
 	int bytes_written=0;
@@ -1288,6 +1341,10 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 // reads in the file, at current position size bytes and stores them in data
 // returns the number of bytes read
 int SimpleFS_read(FileHandle* f, void* data, int size){
+	//we check that we have been given valid data
+	if(f==NULL || data==NULL || size<=0){
+		return 0;
+	}
 	int bytes_read=0;
 	//we calcualte the bytes to read, which are the minimum between the size of the buffer and the size of the file
 	int bytes_to_read=((size<f->fcb->fcb.size_in_bytes-f->pos_in_file)?size:f->fcb->fcb.size_in_bytes-f->pos_in_file);

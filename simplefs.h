@@ -100,8 +100,9 @@ typedef struct _SearchResult{
 	int result; //SUCCESS or FAILED
 	int type; // 0->file 1->directory
 	int dir_block_in_disk; //block on disk containing the last visited directory block;
+	int pos_in_block; //position of the result in the visited block
 	void* element; //the found element which will need to be casted according to the type of element
-	DirectoryBlock *last_visited_dir_block; //if we need to add block to this directory
+	DirectoryBlock *last_visited_dir_block; //if we need to add block to this directory if it's NULL we are in the dcb
 }SearchResult;
 
 // initializes a file system on an already made disk

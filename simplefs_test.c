@@ -573,7 +573,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=2000;
+  fs->block_num=10;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -587,7 +587,7 @@ int main(void) {
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
   //cp_test_blocks(dh);
-	create_someFiles(dh);
+	//create_someFiles(dh);
 
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
@@ -596,7 +596,7 @@ int main(void) {
   dh=SimpleFS_init(fs,disk);
   remove_bigTree(dh);*/
 
-  //create_someDir(dh);
+  create_someDir(dh);
   /*DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
