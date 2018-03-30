@@ -39,12 +39,24 @@ typedef struct _FirstFileBlock{
 } FirstFileBlock;
 
 typedef struct _Index{
-  int nextIndex;
-	int block_in_disk;
-  int previousIndex;
-  int indexes[(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int)];
+  BlockHeader header;
+  int indexes[(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int)];
 } Index;
 
+//  int nextIndex;
+//	int block_in_disk;
+//  int previousIndex;
+
+
+//  int indexes[(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int)];
+/*
+ typedef struct _BlockHeader {
+  int previous_block;   // chained list (previous block)
+  int next_block;       // chained list (next_block)
+  int block_in_file;    // position in the file, if 0 we have a file control block
+  int block_in_disk;    // repeated position of the block on the disk
+} BlockHeader;
+ */
 // this is one of the next physical blocks of a file
 typedef struct _FileBlock{
   BlockHeader header;
