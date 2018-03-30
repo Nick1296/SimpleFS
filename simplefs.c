@@ -679,9 +679,11 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 				res=DiskDriver_freeBlock(handle->sfs->disk, handle->dcb->header.block_in_disk);
 				CHECK_ERR(res==FAILED, "Error on freeBlock in simpleFS_remove");
 
+				// Obtain the fdb of parent directory
 				res=DiskDriver_readBlock(handle->sfs->disk , fdb, handle->directory->header.block_in_disk);
 				CHECK_ERR(res==FAILED, "Error on read of FirstDirectoryBlock in simpleFS_remove");
 				if(handle->directory->num_entries > FDB_max_elements){
+					// search the last directoryBlock used
 					int app = fdb->header.next_block;
 					while(app!=MISSING){
 						res=DiskDriver_readBlock(handle->sfs->disk , db, app);
@@ -689,7 +691,7 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 						app = db->header.next_block;
 					}
 					// Trovo l'ultimo blocco occupato
-					for(i=0; i<handle->directory->num_entries && db->file_blocks[i]!=MISSING; i++);
+					for(i=0; i<Dir_Block_max_elements && db->file_blocks[i]!=MISSING; i++);
 					handle->directory->file_blocks[z]=db->file_blocks[i-1];
 					db->file_blocks[i-1]=MISSING;
 
@@ -698,9 +700,10 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 					if(res==FAILED) return FAILED;
 
 				}else{
+					// search the last item in file_block of directory block
 					for(i=0; i<handle->directory->num_entries && handle->dcb->file_blocks[i]!=MISSING; i++);
 					res=DiskDriver_freeBlock(handle->sfs->disk, handle->directory->header.block_in_disk);
-					handle->directory->file_blocks[z]=handle->directory->file_blocks[i-1];
+					if(i-1!=0)handle->directory->file_blocks[z]=handle->directory->file_blocks[i-1];
 					handle->directory->file_blocks[i-1]=MISSING;
 				}
 				handle->directory->num_entries--;
@@ -721,13 +724,14 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 				pos=i;
 			}
 			if(db->file_blocks[(z-FDB_max_elements)%Dir_Block_max_elements]==handle->dcb->header.block_in_disk){
+				// search the last directoryBlock used				
 				int app = fdb->header.next_block;
 				while(app!=MISSING){
 					res=DiskDriver_readBlock(handle->sfs->disk , db, app);
 					CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
 					app = db->header.next_block;
 				}
-				// Trovo l'ultimo blocco occupato
+				// search the last item in file_block of directory block
 				for(i=0; i<handle->directory->num_entries && db1->file_blocks[i]!=MISSING; i++);
 				res=DiskDriver_freeBlock(handle->sfs->disk, handle->dcb->header.block_in_disk);
 				CHECK_ERR(res==FAILED, "Error on freeBlock in simpleFS_remove");
@@ -748,10 +752,10 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 	return SUCCESS;
 }
 
-int SimpleFS_removeFileOnDir(SimpleFS* sfs, DirectoryHandle* dh, void* element, int pos_in_block){
+int SimpleFS_removeFileOnDir(DirectoryHandle* dh, void* element, int pos_in_block){
 		// Ricompatto la lista dei file contenuti nella directory
 		// genitore del file
-		int i, res;
+		int i, res, pos=0;
 		int FDB_max_elements=(BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int);
 		int Dir_Block_max_elements=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 		DirectoryHandle* dir = dh;
@@ -759,27 +763,33 @@ int SimpleFS_removeFileOnDir(SimpleFS* sfs, DirectoryHandle* dh, void* element, 
 		DirectoryBlock* db1 = (DirectoryBlock*)malloc(sizeof(DirectoryBlock));
 		FirstFileBlock* file = (FirstFileBlock*)element;
 		// Rimuovo il file
-		SimpleFS_removeFile(sfs, file->header.block_in_disk);
+		SimpleFS_removeFile(dh->sfs, file->header.block_in_disk);
 
 		if(pos_in_block<FDB_max_elements){
 				// free the target block
-				res=DiskDriver_freeBlock(sfs->disk, dir->dcb->file_blocks[pos_in_block]);
+				res=DiskDriver_freeBlock(dh->sfs->disk, dir->dcb->file_blocks[pos_in_block]);
 				CHECK_ERR(res==FAILED, "Error on freeBlock in simpleFS_remove");
 
 				// File contenuto nell'FDB della directory genitore
-				if(dir->dcb->header.block_in_disk!=dir->current_block->block_in_disk){
+				if(dir->dcb->num_entries >= FDB_max_elements){
 					memset(db, 0, sizeof(DirectoryBlock));
-					res=DiskDriver_readBlock(sfs->disk , db, dir->current_block->block_in_disk);
-					CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
-					// Trovo l'ultimo blocco occupato
-					for(i=0; i<dir->dcb->num_entries && db->file_blocks[i]!=MISSING; i++);
+					// TODO did this iteration below because currentBlock does not assume the values it should have. check with gdb
+					int app = dir->dcb->header.next_block;
+					while(app!=MISSING){
+						res=DiskDriver_readBlock(dh->sfs->disk , db, app);
+						CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
+						app = db->header.next_block;
+					}
+					// search the last item in file_block of directory block
+					for(i=0; i<Dir_Block_max_elements && db->file_blocks[i]!=MISSING; i++);
 					dir->dcb->file_blocks[pos_in_block]=db->file_blocks[i-1];
 					db->file_blocks[i-1]=MISSING;
 
 					// We write the updated on file
-					res=DiskDriver_writeBlock(sfs->disk, db, db->header.block_in_disk);
+					res=DiskDriver_writeBlock(dh->sfs->disk, db, db->header.block_in_disk);
 					if(res==FAILED) return FAILED;
 				}else{
+					// search the last item in file_block of directory block
 					for(i=0; i<dir->dcb->num_entries && dir->dcb->file_blocks[i]!=MISSING; i++);
 					if(i-1!=0) dir->dcb->file_blocks[pos_in_block]=dir->dcb->file_blocks[i-1];
 					dir->dcb->file_blocks[i-1]=MISSING;
@@ -787,32 +797,38 @@ int SimpleFS_removeFileOnDir(SimpleFS* sfs, DirectoryHandle* dh, void* element, 
 				dir->dcb->num_entries--;
 			
 				// We write the updated on file
-				res=DiskDriver_writeBlock(sfs->disk, dir, dir->dcb->header.block_in_disk);
+				res=DiskDriver_writeBlock(dh->sfs->disk, dir, dir->dcb->header.block_in_disk);
 				if(res==FAILED) return FAILED;
 		}else{
 			// File contenuto nei DB della directory genitore
-			int logblock=(pos_in_block/Dir_Block_max_elements)+1;
+			int logblock=((pos_in_block-FDB_max_elements)/Dir_Block_max_elements)+1;
 			int block = dir->dcb->header.next_block;
-			for(i=0; i<logblock; i++){
+			for(i=0; i<logblock && pos!=logblock; i++){
 				memset(db, 0, sizeof(DirectoryBlock));
-				res=DiskDriver_readBlock(sfs->disk , db, block);
+				res=DiskDriver_readBlock(dh->sfs->disk , db, block);
 				CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
 				block = db->header.next_block;
+				pos=i+1;
 			}
 			memset(db1, 0, sizeof(DirectoryBlock));
-			res=DiskDriver_readBlock(sfs->disk , db1, dir->current_block->block_in_disk);
-			CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
+			// TODO did this iteration below because currentBlock does not assume the values it should have. check with gdb
+			int app = dh->dcb->header.next_block;
+			while(app!=MISSING){
+				res=DiskDriver_readBlock(dh->sfs->disk , db1, app);
+				CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
+				app = db1->header.next_block;
+			}
 			// Trovo l'ultimo blocco occupato
-			for(i=0; i<dir->dcb->num_entries && db1->file_blocks[i]!=MISSING; i++);
-			res=DiskDriver_freeBlock(sfs->disk, dir->dcb->file_blocks[pos_in_block]);
+			for(i=0; i<Dir_Block_max_elements && db1->file_blocks[i]!=MISSING; i++);
+			res=DiskDriver_freeBlock(dh->sfs->disk,db->file_blocks[(pos_in_block-FDB_max_elements)%Dir_Block_max_elements]);
 			CHECK_ERR(res==FAILED, "Error on freeBlock in simpleFS_remove");
 			db->file_blocks[pos_in_block]=db1->file_blocks[i-1];
 			db1->file_blocks[i-1]=MISSING;
 
 			// We write the updated on file
-			res=DiskDriver_writeBlock(sfs->disk, db, db->header.block_in_disk);
+			res=DiskDriver_writeBlock(dh->sfs->disk, db, db->header.block_in_disk);
 			if(res==FAILED) return FAILED;
-			res=DiskDriver_writeBlock(sfs->disk, db1, db1->header.block_in_disk);
+			res=DiskDriver_writeBlock(dh->sfs->disk, db1, db1->header.block_in_disk);
 			if(res==FAILED) return FAILED;
 		}
 		free(db1);
@@ -841,7 +857,7 @@ int SimpleFS_remove_rec(DirectoryHandle* handle){
 		if(z < FDB_max_elements){
 			res=DiskDriver_readBlock(handle->sfs->disk, fh, handle->dcb->file_blocks[z]);
 			CHECK_ERR(res==FAILED, "Error read dir block in simplefs_remove");
-			if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle->sfs, handle, (void*)fh, z);
+			if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			else{
 				memset(hand, 0, sizeof(DirectoryHandle));
 				hand->sfs=handle->sfs;
@@ -869,7 +885,7 @@ int SimpleFS_remove_rec(DirectoryHandle* handle){
 			}
 			res=DiskDriver_readBlock(handle->sfs->disk, fh, db->file_blocks[(z-FDB_max_elements)%Dir_Block_max_elements]);
 			CHECK_ERR(res==FAILED, "Error read dir block in simplefs_remove");
-			if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle->sfs, handle, (void*)fh, z);
+			if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			else{
 				DirectoryHandle* hand = (DirectoryHandle*)malloc(sizeof(DirectoryBlock));
 				memset(hand, 0, sizeof(DirectoryHandle));
@@ -932,6 +948,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		handle->pos_in_dir=0;
 		handle->pos_in_block=0;
 
+		// search eventuall child dir
 		res=SimpleFS_remove_rec(handle);
 		if(res==FAILED){
 			free(file);
@@ -948,7 +965,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 			if(z < FDB_max_elements){
 				res=DiskDriver_readBlock(handle->sfs->disk, fh, handle->dcb->file_blocks[z]);
 				CHECK_ERR(res==FAILED, "Error read dir block in simplefs_remove");
-				if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle->sfs, handle, (void*)fh, z);
+				if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			}
 			else{
 				// File contenuto nei DB della directory genitore
@@ -962,7 +979,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 				}
 				res=DiskDriver_readBlock(handle->sfs->disk, fh, db->file_blocks[(z-FDB_max_elements)%Dir_Block_max_elements]);
 				CHECK_ERR(res==FAILED, "Error read dir block in simplefs_remove");
-				if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle->sfs, handle, (void*)fh, z);
+				if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			}
 		}
 
@@ -979,7 +996,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		return SUCCESS;
 	}else{
 		// Elimino il file dalla directory in cui risiede
-		SimpleFS_removeFileOnDir(d->sfs, d, sRes->element, sRes->pos_in_block);
+		SimpleFS_removeFileOnDir(d, sRes->element, sRes->pos_in_block);
 		
 		return SUCCESS;
 	}
@@ -1055,8 +1072,8 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	int i,res;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
+	
 	//we use he current_index block to determine where we must put the new block
-
 	if(f->fcb->num_entries-FFB_max_entries<=0){
 		//we search for a free spot in the FFB
 		for(i=0;i<FFB_max_entries;i++){

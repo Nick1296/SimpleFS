@@ -388,7 +388,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   SimpleFS_close(fh);
   if(ret!=FAILED) readDir_test(dh,13);
   printf("SimpleFS_changeDir ..\n");
-ret=SimpleFS_changeDir(dh, "..");
+  ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   if(ret!=FAILED) readDir_test(dh,14);
   printf("SimpleFS_changeDir ..\n");
@@ -457,14 +457,14 @@ void create_a_bigTree(DirectoryHandle* dh){
 
   bitmap_info(dh->sfs->disk);
 
-  int i=0, ret=0, dim=160;
+  int i=0, ret=0, dim=800;
   char name[4];
 
   for(i=0; i<dim; i++){
     snprintf(name, 4*sizeof(char), "%d", i);
     printf("SimpleFS_mkDir %s\n", name);
     ret=SimpleFS_mkDir(dh, name);
-    if(ret==FAILED) printf("Errore in mkDir_test1\n");
+    if(ret==FAILED) printf("Errore in mkDir %s\n", name);
     if(ret!=FAILED) readDir_test(dh,i);
     printf("SimpleFS_changeDir %s\n",name);
     ret=SimpleFS_changeDir(dh, name);
@@ -478,7 +478,7 @@ void create_a_bigTree(DirectoryHandle* dh){
 }
 
 void remove_bigTree(DirectoryHandle* dh){
-  bitmap_info(dh->sfs->disk);
+
   int ret=0;
   readDir_test(dh,0);
   printf("SimpleFS_remove 0\n");
@@ -493,7 +493,7 @@ void create_someDir(DirectoryHandle* dh){
 
   bitmap_info(dh->sfs->disk);
 
-  int i=0, ret=0, dim=160;
+  int i=0, ret=0, dim=600;
   char name[4];
   snprintf(name, 4*sizeof(char), "%d", i);
   printf("SimpleFS_mkDir %s\n", name);
@@ -508,7 +508,7 @@ void create_someDir(DirectoryHandle* dh){
     snprintf(name, 4*sizeof(char), "%d", i);
     //printf("SimpleFS_mkDir %s\n", name);
     ret=SimpleFS_mkDir(dh, name);
-    if(ret==FAILED) printf("Errore in mkDir_test1\n");
+    if(ret==FAILED) printf("Errore in mkDir %s\n", name);
   }
 
   if(ret!=FAILED) readDir_test(dh,i);
@@ -519,7 +519,7 @@ void create_someDir(DirectoryHandle* dh){
 void create_someFiles(DirectoryHandle* dh){
 	bitmap_info(dh->sfs->disk);
 
-	int i=0, ret=0, dim=160,length=512;
+	int i=0, ret=0, dim=220,length=1024;
 	char name[4],data[length];
   snprintf(name, 4*sizeof(char), "%d", i);
   printf("SimpleFS_mkDir %s\n", name);
@@ -587,7 +587,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=500;
+  fs->block_num=1000;
   fs->filename=diskname;
   fs->disk=disk;
 
