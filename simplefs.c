@@ -882,10 +882,10 @@ FileHandle* SimpleFS_openFile(DirectoryHandle* d, const char* filename){
 	memcpy(file->current_block,&(((FirstFileBlock*)search->element)->header),sizeof(BlockHeader));
 	//we allocate and initialize the current index block
 	file->current_index_block=(BlockHeader*)malloc(sizeof(BlockHeader));
-	file->current_index_block->block_in_disk=MISSING;
+	file->current_index_block->block_in_disk=file->fcb->header.block_in_disk;
 	//we have 0 beacuse our index is the fcb
 	file->current_index_block->block_in_file=0;
-	file->current_index_block->next_block=MISSING;
+	file->current_index_block->next_block=file->fcb->next_IndexBlock;
 	file->current_index_block->previous_block=MISSING;
 	// we cleanup the result of our search
 	if(search->last_visited_dir_block!=NULL){
@@ -1028,7 +1028,8 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	if(block_in_file<FFB_max_entries){
 		index_num=0;
 	}else{
-		index_num=(block_in_file-FFB_max_entries)/IB_max_entries;
+		//TODO check!
+		index_num=((block_in_file-FFB_max_entries)/IB_max_entries)+1;
 	}
 
 	if(index_num==0){
@@ -1037,7 +1038,7 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	}else{
 		//if we get here we need to search in the other index blocks
 		Index *index=(Index*) malloc(sizeof(Index));
-		if(f->current_index_block->block_in_file>index_num){
+		if(f->current_index_block->block_in_file<index_num){
 			//we search for another index block after the current block
 			for(i=0;i<index_num;i++){
 				//we check if we have another index block
@@ -1050,9 +1051,13 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 					free(index);
 					CHECK_ERR(res==FAILED,"can't read the next index block");
 				}
+				//we update the current index block
+				f->current_index_block->block_in_disk=index->block_in_disk;
+				f->current_index_block->next_block=index->nextIndex;
+				f->current_index_block->previous_block=index->previousIndex;
 			}
 		}else{
-			if(f->current_index_block->block_in_file<index_num){
+			if(f->current_index_block->block_in_file>index_num){
 				//we search for another index block before the current block
 				for(i=0;i<index_num;i++){
 					//we check if we have another index block
@@ -1065,6 +1070,10 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 						free(index);
 						CHECK_ERR(res==FAILED,"can't read the next index block");
 					}
+					//we update the current index block
+					f->current_index_block->block_in_disk=index->block_in_disk;
+					f->current_index_block->next_block=index->nextIndex;
+					f->current_index_block->previous_block=index->previousIndex;
 				}
 			}else{
 				//if we get here we need to read only the current index block
@@ -1076,7 +1085,8 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 			}
 		}
 		//now we need to get the index from the found block
-		block_in_disk=index->indexes[(block_in_file-FFB_max_entries)%IB_max_entries];
+		block_in_disk=index->indexes[(block_in_file-FFB_max_entries)-IB_max_entries*(f->current_index_block->block_in_file-1)];
+		free(index);
 	}
 	return block_in_disk;
 }
