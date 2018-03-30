@@ -6,8 +6,8 @@ AR=ar
 
 BINS= simplefs_test shell
 
-OBJS = simplefs_test.c simplefs.c bitmap.c disk_driver.c
-OGAB= shell.c simplefs.c bitmap.c disk_driver.c
+OBJS = simplefs_test.c simplefs.c simplefs_aux.c bitmap.c disk_driver.c
+OGAB= shell.c simplefs.c simplefs_aux.c bitmap.c disk_driver.c
 
 HEADERS=simplefs.h\
         disk_driver.h\
