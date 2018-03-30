@@ -560,9 +560,9 @@ void trunkedFile(DirectoryHandle *dh){
   int blocks=(dim+511)/512;
   void *src=malloc(sizeof(char)*dim), *dst=malloc(sizeof(char)*dim);
   int meta=f->fcb->fcb.size_in_bytes/2;
-  SimpleFS_seek(f, meta/512);
+  SimpleFS_seek(f, meta);
   for(i=0;i<blocks;i++){
-    SimpleFS_read(f,dst+(512*i),512*sizeof(char));
+   // SimpleFS_read(f,dst+(512*i),512*sizeof(char));
 	  read(fd,src+(512*i),512);
 	  SimpleFS_write(f,src+(512*i),512*sizeof(char));
   }
@@ -601,7 +601,17 @@ int main(void) {
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
 	//create_someFiles(dh);
-  //cp_test_blocks(dh);
+  /*cp_test_blocks(dh);
+	trunkedFile(dh);*/
+
+	char *src=(char*)malloc(sizeof(char)*512*200),*src2=(char*)malloc(sizeof(char)*1024);
+	memset(src,65,sizeof(char)*512*200);
+	memset(src,65,sizeof(char)*1024);
+	FileHandle *f=SimpleFS_createFile(dh,"test");
+	SimpleFS_write(f,src,512*200);
+	SimpleFS_seek(f,512*100);
+	SimpleFS_write(f,src2,1024);
+
 
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
