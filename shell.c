@@ -163,9 +163,6 @@ void make_argv(char* argv[MAX_NUM_COMMAND],
     }
   }
   argv[j]=NULL;
-
-	//TODO remove or comment when unneeded
-  for(i=0; argv[i]!=NULL; i++) printf("argv[%d] >%s<\n",i, argv[i]);
 }
 
 int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
@@ -189,8 +186,7 @@ int do_cat(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
           memset(buffer, 0, dim_let*sizeof(char));
           if(daLeggere-letti >= dim_let) letti+=SimpleFS_read(fh, buffer, dim_let);
           else letti+=SimpleFS_read(fh, buffer, daLeggere-letti);
-          // TODO replace this with printf
-          fprintf(stderr, "%s",buffer);
+          printf("%s",buffer);
         }
         printf("letti: %d\n", letti);
         // Libero la memoria occupata
@@ -246,30 +242,21 @@ int do_copy_file(DirectoryHandle* dh, char* argv[MAX_NUM_COMMAND], int i_init){
     lseek(fd, 0, SEEK_SET);
     int num_letti=0;
     char* buffer = (char*)malloc(BLOCK_SIZE*sizeof(char));
-    printf("\n[");
-// TODO da rimuovore dopo debug
-printf("da leggere %d \n", daLeggere);
     // Iterazioni per leggere tutto il file
     while(num_letti < daLeggere){
       memset(buffer, 0, BLOCK_SIZE);
       res=read(fd, buffer, BLOCK_SIZE);
-// TODO da rimuovore dopo debug
-printf("\nletti %d \n", res);
       if(res == -1 && errno == EINTR) continue;
       if(res>0){
         num_letti+=res;
         resS=SimpleFS_write(fh, buffer, res);
-        // TODO da rimuovore dopo debug
-        fprintf(stderr, "%s", buffer);
-// TODO da rimuovore dopo debug
-printf("\nscritti %d \n", resS);
         if(resS==FAILED){
           printf("Impossibile scrivere su file\n");
           num_letti = daLeggere;
         }
       }
       else num_letti = daLeggere;
-      printf("=");
+      printf("\r[%d/%d",num_letti, daLeggere);
       fflush(stdout);
     }
     printf("]\n");
@@ -326,8 +313,6 @@ printf("\nscritti %d \n", resS);
     resS=0;
     int daLeggere = fh->fcb->fcb.size_in_bytes;
     int attuale=0;
-// TODO da rimuovore dopo debug    
-printf("da leggere: %d\n", daLeggere);
     printf("\n[");
     // Iterazioni per leggere tutto il file
     while(resS < daLeggere){
@@ -339,8 +324,6 @@ printf("da leggere: %d\n", daLeggere);
       // Iterazione per scrivere correttamente i byte letti
       // sul file destinazione
       while(res < resS){
-// TODO da rimuovore dopo debug
-printf("pos buff: %d\n", resS-res);
         res+=write(fd , buffer+attuale, resS-res);
         attuale=res;
         if(res == -1 && errno == EINTR) continue;
@@ -352,9 +335,7 @@ printf("pos buff: %d\n", resS-res);
           resS = daLeggere;
         }
       }
-// TODO da rimuovore dopo debug
-printf("letti: %d\n", resS);
-      printf("=");
+      printf("\r[%d/%d",resS, daLeggere);
       fflush(stdout);
     }
     printf("]\n");
