@@ -324,6 +324,12 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   int ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   readDir_test(dh,1);
+  char name[4];
+  sprintf(name, "%d",9);
+  printf("SimpleFS_createFile 9\n");
+  FileHandle* fh=SimpleFS_createFile(dh,name);
+  SimpleFS_close(fh);
+  readDir_test(dh,1);
   printf("SimpleFS_mkDir ciao\n");
   ret=SimpleFS_mkDir(dh, "ciao");
   if(ret==FAILED) printf("Errore in mkDir_test1\n");
@@ -332,10 +338,9 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   ret=SimpleFS_changeDir(dh, "ciao");
   if(ret==FAILED) printf("Errore in changeDir ciao\n");
   if(ret!=FAILED) readDir_test(dh,3);
-  char name[4];
-  sprintf(name, "%d",9);
-  printf("SimpleFS_createFile 9\n");
-  FileHandle* fh=SimpleFS_createFile(dh,name);
+  sprintf(name, "%d",8);
+  printf("SimpleFS_createFile 8\n");
+  fh=SimpleFS_createFile(dh,name);
   SimpleFS_close(fh);
   readDir_test(dh,4);
   printf("SimpleFS_changeDir ..\n");
@@ -349,9 +354,9 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   ret=SimpleFS_changeDir(dh, "ciao");
   if(ret==FAILED) printf("Errore in changeDir ciao\n");
   if(ret!=FAILED) readDir_test(dh,6);
-  printf("SimpleFS_remove 9\n");
+  printf("SimpleFS_remove 8\n");
   ret=SimpleFS_remove(dh, name);
-  if(ret==FAILED) printf("Errore in remove 9\n");
+  if(ret==FAILED) printf("Errore in remove 8\n");
   if(ret!=FAILED) readDir_test(dh,7);
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");
@@ -452,7 +457,7 @@ void create_a_bigTree(DirectoryHandle* dh){
 
   bitmap_info(dh->sfs->disk);
 
-  int i=0, ret=0, dim=600;
+  int i=0, ret=0, dim=160;
   char name[4];
 
   for(i=0; i<dim; i++){
@@ -488,7 +493,7 @@ void create_someDir(DirectoryHandle* dh){
 
   bitmap_info(dh->sfs->disk);
 
-  int i=0, ret=0, dim=600;
+  int i=0, ret=0, dim=160;
   char name[4];
   snprintf(name, 4*sizeof(char), "%d", i);
   printf("SimpleFS_mkDir %s\n", name);
@@ -514,8 +519,17 @@ void create_someDir(DirectoryHandle* dh){
 void create_someFiles(DirectoryHandle* dh){
 	bitmap_info(dh->sfs->disk);
 
-	int i=0, ret=0, dim=600,length=512;
+	int i=0, ret=0, dim=160,length=512;
 	char name[4],data[length];
+  snprintf(name, 4*sizeof(char), "%d", i);
+  printf("SimpleFS_mkDir %s\n", name);
+  ret=SimpleFS_mkDir(dh, name);
+  if(ret==FAILED) printf("Errore in mkDir_test1\n");
+  if(ret!=FAILED) readDir_test(dh,i);
+  printf("SimpleFS_changeDir %s\n",name);
+  ret=SimpleFS_changeDir(dh, name);
+  if(ret==FAILED) printf("Errore in changeDir %s\n", name);
+
 	memset(data,65,sizeof(char)*length);
 	snprintf(name, 4*sizeof(char), "%d", i);
 	FileHandle *f;
@@ -573,7 +587,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=20000;
+  fs->block_num=500;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -585,9 +599,9 @@ int main(void) {
   //createFile_openFile_closeFile_test(dh);
 	//read_seek_write_test(dh);
   //readDir_changeDir_mkDir_remove_test(dh);
-	cp_test(dh);
-	create_someFiles(dh);
-  cp_test_blocks(dh);
+	//cp_test(dh);
+	//create_someFiles(dh);
+  //cp_test_blocks(dh);
 
   /*create_a_bigTree(dh);
   DiskDriver_shutdown(disk);
@@ -596,12 +610,12 @@ int main(void) {
   dh=SimpleFS_init(fs,disk);
   remove_bigTree(dh);*/
 
-  //create_someDir(dh);
-  /*DiskDriver_shutdown(disk);
+  create_someDir(dh);
+  DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,disk);
-  remove_bigTree(dh);*/
+  remove_bigTree(dh);
 
   /*cp_test_blocks(dh);
   DiskDriver_shutdown(disk);

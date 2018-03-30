@@ -33,8 +33,8 @@ typedef struct _FileControlBlock{
 typedef struct _FirstFileBlock{
   BlockHeader header;
   FileControlBlock fcb;
-  int next_IndexBlock;
   int num_entries;
+  int next_IndexBlock;
   int blocks[(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int)] ;
 } FirstFileBlock;
 
