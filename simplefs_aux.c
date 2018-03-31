@@ -61,8 +61,9 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 	//we adjust the number of remaining entries
 	dir_entries-=FDB_max_elements;
 	//we start the search in the rest of the chained list
+	DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
 	while(next_block!=MISSING){
-		DirectoryBlock *dir=(DirectoryBlock*)malloc(sizeof(DirectoryBlock));
+		memset(dir, 0, sizeof(DirectoryBlock));
 
 		//we get the next directory block;
 		dir_block_in_disk=next_block;
@@ -103,6 +104,8 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name){
 		dir_entries-=Dir_Block_max_elements;
 		next_block=dir->header.next_block;
 	}
+	if(element!=NULL) free(element);
+	if(dir!=NULL)	free(dir);
 	return result;
 }
 
@@ -293,6 +296,16 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 	DirectoryBlock* db1 = (DirectoryBlock*)malloc(sizeof(DirectoryBlock));
 	int i, z, res, pos=0;
 
+	// Removes all block occupied by passed directory
+	int app = handle->dcb->header.next_block;
+	while(app!=MISSING){
+		res=DiskDriver_readBlock(handle->sfs->disk , db, app);
+		CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
+		res=DiskDriver_freeBlock(handle->sfs->disk, app);
+		CHECK_ERR(res==FAILED, "Error on freeBlock in simpleFS_remove");
+		app = db->header.next_block;
+	}
+
 	// Remove passed directory in the parent directory
 	for(z=0; z<handle->directory->num_entries; z++){
 		if(z < FDB_max_elements){
@@ -306,7 +319,7 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 				CHECK_ERR(res==FAILED, "Error on read of FirstDirectoryBlock in simpleFS_remove");
 				if(handle->directory->num_entries > FDB_max_elements){
 					// search the last directoryBlock used
-					int app = fdb->header.next_block;
+					app = fdb->header.next_block;
 					while(app!=MISSING){
 						res=DiskDriver_readBlock(handle->sfs->disk , db, app);
 						CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
@@ -331,7 +344,7 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 				handle->directory->num_entries--;
 
 				// We write the updated on file
-				res=DiskDriver_writeBlock(handle->sfs->disk, db, db->header.block_in_disk);
+				res=DiskDriver_writeBlock(handle->sfs->disk, handle->directory, handle->directory->header.block_in_disk);
 				if(res==FAILED) return FAILED;
 			}
 		}
@@ -347,7 +360,7 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 			}
 			if(db->file_blocks[(z-FDB_max_elements)%Dir_Block_max_elements]==handle->dcb->header.block_in_disk){
 				// search the last directoryBlock used				
-				int app = fdb->header.next_block;
+				app = fdb->header.next_block;
 				while(app!=MISSING){
 					res=DiskDriver_readBlock(handle->sfs->disk , db, app);
 					CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_remove");
@@ -509,7 +522,6 @@ int SimpleFS_remove_rec(DirectoryHandle* handle){
 			CHECK_ERR(res==FAILED, "Error read dir block in simplefs_remove");
 			if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			else{
-				DirectoryHandle* hand = (DirectoryHandle*)malloc(sizeof(DirectoryBlock));
 				memset(hand, 0, sizeof(DirectoryHandle));
 				hand->sfs=handle->sfs;
 				hand->dcb=fh;
@@ -544,7 +556,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 
 	int i,res;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
-	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
+	int IB_max_entries=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 	
 	//we use he current_index block to determine where we must put the new block
 	if(f->fcb->num_entries-FFB_max_entries<=0){
@@ -668,6 +680,7 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 			for(i=0;i<index_num;i++){
 				//we check if we have another index block
 				if(f->current_index_block->next_block==MISSING){
+					free(index);
 					return FAILED;
 				}
 				//we read the index
@@ -687,6 +700,7 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 				for(i=0;i<index_num;i++){
 					//we check if we have another index block
 					if(f->current_index_block->previous_block==MISSING){
+						free(index);
 						return FAILED;
 					}
 					//we read the index

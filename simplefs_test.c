@@ -611,6 +611,8 @@ int main(void) {
 	SimpleFS_write(f,src,512*200);
 	SimpleFS_seek(f,512*100);
 	SimpleFS_write(f,src2,1024);
+  free(src);
+  free(src2);
 
 
   /*create_a_bigTree(dh);

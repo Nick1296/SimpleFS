@@ -194,6 +194,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 			// File contenuto nei DB della directory genitore
 			int logblock=((i-FDB_max_elements)/Dir_Block_max_elements)+1;
 			int j, block = d->dcb->header.next_block;
+			if(pos!=logblock) memset(db, 0, sizeof(DirectoryBlock));
 			for(j=0; j<logblock && pos!=logblock; j++){
 				res=DiskDriver_readBlock(d->sfs->disk , db, block);
 				CHECK_ERR(res==FAILED, "Error on read of DirectoryBlock in simpleFS_readDir");
@@ -215,7 +216,7 @@ int SimpleFS_readDir(char** names, DirectoryHandle* d){
 
   memset(*names+strlen(*names)-1, 0,1);
   free(file);
-
+	free(db);
   return SUCCESS;
 }
 
@@ -333,7 +334,6 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
     free(search);
 		return FAILED;
 	}
-
   free(search);
 
   // getting the root block
@@ -361,10 +361,6 @@ int SimpleFS_mkDir(DirectoryHandle* d, const char* dirname){
   //initializing the entries of the directory
   root->num_entries=0;
   memset(root->file_blocks,MISSING,((BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int))*sizeof(int));
-	/*int i=0;
-		for(i=0;i<(int)((BLOCK_SIZE-sizeof(BlockHeader)-sizeof(FileControlBlock)-sizeof(int))/sizeof(int));i++){
-    root->file_blocks[i]=MISSING;
-  }*/
 
   //we update the parent directory
   Dir_addentry(d,root->header.block_in_disk);
@@ -420,6 +416,7 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		if(res==FAILED){
 			free(file);
 			free(handle);
+			free(sRes);
 			return FAILED;
 		}
 
@@ -449,12 +446,15 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 				if(fh->fcb.is_dir==FILE) SimpleFS_removeFileOnDir(handle, (void*)fh, z);
 			}
 		}
+		free(fh);
+		free(db);
 
 		// Remove that the directory in the parent directory
 		res=SimpleFS_removeChildDir(handle);
 		CHECK_ERR(res==FAILED, "Error in remove a child dir");
 		free(handle);
 		free(file);
+		free(sRes);
 
 		// We write the updated FirstDirectoryBlock
 		res=DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->header.block_in_disk);
@@ -464,7 +464,8 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 	}else{
 		// Elimino il file dalla directory in cui risiede
 		SimpleFS_removeFileOnDir(d, sRes->element, sRes->pos_in_block);
-		
+		free(sRes);
+
 		return SUCCESS;
 	}
 
