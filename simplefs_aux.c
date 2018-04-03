@@ -230,7 +230,7 @@ void Dir_addentry(DirectoryHandle *d,int file_block){
 int SimpleFS_removeFile(SimpleFS *sfs, int file){
 	int i,res,stop=0;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
-	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
+	int IB_max_entries=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 	int next_IndexBlock;
 	//we load our FFB
 	FirstFileBlock *ffb=(FirstFileBlock*)malloc(sizeof(FirstFileBlock));
@@ -359,7 +359,7 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 				pos=i;
 			}
 			if(db->file_blocks[(z-FDB_max_elements)%Dir_Block_max_elements]==handle->dcb->header.block_in_disk){
-				// search the last directoryBlock used				
+				// search the last directoryBlock used
 				app = fdb->header.next_block;
 				while(app!=MISSING){
 					res=DiskDriver_readBlock(handle->sfs->disk , db, app);
@@ -557,7 +557,7 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	int i,res;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
 	int IB_max_entries=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
-	
+
 	//we use he current_index block to determine where we must put the new block
 	if(f->fcb->num_entries-FFB_max_entries<=0){
 		//we search for a free spot in the FFB
@@ -578,16 +578,14 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 		new_index_block->header.block_in_disk=new_index;                                ////////////////////////////////////////////////////////////////////////////////////
 		new_index_block->header.next_block=MISSING;                                     ////////////////////////////////////////////////////////////////////////////////////
 		new_index_block->header.previous_block=f->current_index_block->block_in_disk;  ////////////////////////////////////////////////////////////////////////////////////
-        new_index_block->header.block_in_file=f->current_index_block->block_in_file +1;/////////////////////////////////////////////////////////////////////////////////////
+		new_index_block->header.block_in_file=f->current_index_block->block_in_file +1;/////////////////////////////////////////////////////////////////////////////////////
 		new_index_block->indexes[0]=block;
 		for(i=1;i<IB_max_entries;i++){
 			new_index_block->indexes[i]=MISSING;
 		}
 
 		//we update our current index block
-		f->current_index_block->block_in_disk=new_index_block->header.block_in_disk;
-		f->current_index_block->next_block=new_index_block->header.next_block;   //////////////////////////////////////////////////////////////////////////////////////////////////
-		f->current_index_block->previous_block=new_index_block->header.previous_block; /////////////////////////////////////////////////////////////////////////////
+		memcpy(f->current_index_block,&(new_index_block->header),sizeof(BlockHeader));
 
 		//now we write the new index block to disk
 		res=DiskDriver_writeBlock(f->sfs->disk,new_index_block,new_index);
@@ -625,16 +623,14 @@ int SimpleFS_addIndex(FileHandle *f,int block){
 	new_index_block->header.block_in_disk=new_index;                   ////////////////////////////////////////////////////////////////////////////////////
 	new_index_block->header.next_block=MISSING;
 	new_index_block->header.previous_block=f->current_index_block->block_in_disk;      ////////////////////////////////////////////////////////////////////////////
-    new_index_block->header.block_in_file=f->current_index_block->block_in_file +1; ////////////////////////////////////////////////////////////////////////////
+	new_index_block->header.block_in_file=f->current_index_block->block_in_file +1; ////////////////////////////////////////////////////////////////////////////
 	new_index_block->indexes[0]=block;
 	for(i=1;i<IB_max_entries;i++){
 		new_index_block->indexes[i]=MISSING;
 	}
 
-	//we update our current_index_block
-	f->current_index_block->block_in_disk=new_index;
-	f->current_index_block->next_block=MISSING;
-	f->current_index_block->previous_block=new_index_block->header.previous_block;
+	//we update our current index block
+	memcpy(f->current_index_block,&(new_index_block->header),sizeof(BlockHeader));
 	//now we write the new index block to disk
 	res=DiskDriver_writeBlock(f->sfs->disk,new_index_block,new_index);
 	free(new_index_block);
@@ -660,7 +656,7 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 
 	int i,res,index_num,block_in_disk=FAILED;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
-	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
+	int IB_max_entries=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 	//firstly we need to get the number of the index which contains the block we need
 	if(block_in_file<FFB_max_entries){
 		index_num=0;
@@ -689,10 +685,8 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 					free(index);
 					CHECK_ERR(res==FAILED,"can't read the next index block");
 				}
-				//we update the current index block
-				f->current_index_block->block_in_disk=index->header.block_in_disk;
-				f->current_index_block->next_block=index->header.next_block;
-				f->current_index_block->previous_block=index->header.previous_block;
+				//we update our current index block
+				memcpy(f->current_index_block,&(index->header),sizeof(BlockHeader));
 			}
 		}else{
 			if(f->current_index_block->block_in_file>index_num){
@@ -709,14 +703,12 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 						free(index);
 						CHECK_ERR(res==FAILED,"can't read the next index block");
 					}
-					//we update the current index block
-					f->current_index_block->block_in_disk=index->header.block_in_disk;
-					f->current_index_block->next_block=index->header.next_block;
-					f->current_index_block->previous_block=index->header.previous_block;
+					//we update our current index block
+					memcpy(f->current_index_block,&(index->header),sizeof(BlockHeader));
 				}
 			}else{
 				//if we get here we need to read only the current index block
-				res=DiskDriver_readBlock(f->sfs->disk,index,f->current_index_block->previous_block);
+				res=DiskDriver_readBlock(f->sfs->disk,index,f->current_index_block->block_in_disk);
 				if(res==FAILED){
 					free(index);
 					CHECK_ERR(res==FAILED,"can't read the next index block");
@@ -724,7 +716,7 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 			}
 		}
 		//now we need to get the index from the found block
-		block_in_disk=index->indexes[(block_in_file-FFB_max_entries)-IB_max_entries*(f->current_index_block->block_in_file-1)];
+		block_in_disk=index->indexes[(block_in_file-FFB_max_entries)-IB_max_entries*(f->current_index_block->block_in_file-1)-1];
 		free(index);
 	}
 	return block_in_disk;
@@ -739,7 +731,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 	int i,res,stop=0;
 	int displacement;
 	int FFB_max_entries=(BLOCK_SIZE-sizeof(FileControlBlock) - sizeof(BlockHeader)-sizeof(int)-sizeof(int))/sizeof(int);
-	int IB_max_entries=(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int);
+	int IB_max_entries=(BLOCK_SIZE-sizeof(BlockHeader))/sizeof(int);
 
 	//we seek the block to adjust the current_index_block
 	res=SimpleFS_getIndex(f,block_in_file);
@@ -748,7 +740,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
                                                                         //c'è la read dovrebbe essere apposto block_in_file ///////////////////////////
 	//if we have the index in the FFB we start clearing from there
 	if(f->fcb->num_entries-FFB_max_entries<=0){
-		displacement=(block_in_file%FFB_max_entries)-1;
+		displacement=block_in_file-1;
 		for(i=displacement;i<FFB_max_entries && !stop;i++){
 			if(f->fcb->blocks[i]==MISSING){
 				stop=1;
@@ -762,7 +754,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 		//we load the current index block
 		res=DiskDriver_readBlock(f->sfs->disk,indexblock,f->current_index_block->block_in_disk);
 		CHECK_ERR(res==FAILED,"can't load the current index block");
-		displacement=block_in_file%IB_max_entries;
+		displacement=block_in_file-FFB_max_entries-IB_max_entries*(f->current_index_block->block_in_file-1)-1;
 		for(i=displacement;i<IB_max_entries && !stop;i++){
 			if(indexblock->indexes[i]==MISSING){
 				stop=1;
@@ -798,9 +790,7 @@ void SimpleFS_clearIndexes(FileHandle* f,int block_in_file){
 		res=DiskDriver_freeBlock(f->sfs->disk,indexblock->header.block_in_disk);       /////////////////////////////////////////////////////////////////////
 		CHECK_ERR(res==FAILED,"can't deallocate the index block")
 		//we advance our current_index_block
-		f->current_index_block->block_in_disk=indexblock->header.block_in_disk;
-		f->current_index_block->next_block=indexblock->header.next_block;
-		f->current_index_block->previous_block=indexblock->header.previous_block;
+		memcpy(f->current_index_block,&(indexblock->header),sizeof(BlockHeader));
 	}
 	free(indexblock);
 }

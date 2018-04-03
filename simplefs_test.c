@@ -566,13 +566,13 @@ void trunkedFile(DirectoryHandle *dh){
 	  read(fd,src+(512*i),512);
 	  SimpleFS_write(f,src+(512*i),512*sizeof(char));
   }
-  SimpleFS_seek(f,0);
+  SimpleFS_seek(f,meta);
   lseek(fd, 0, SEEK_SET);
   for(i=0;i<blocks;i++){
     read(fd,src+(512*i),512);
 	  SimpleFS_read(f,dst+(512*i),512*sizeof(char));
 	  res=memcmp(src+(512*i),dst+(512*i),512*sizeof(char));
-	  fprintf(stderr,"block %d,result: %d\n",i,res);
+	  fprintf(stdout,"block %d,result: %d\n",i,res);
     finalres|=res;
   }
 
@@ -587,7 +587,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=1000;
+  fs->block_num=7000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -601,10 +601,11 @@ int main(void) {
   //readDir_changeDir_mkDir_remove_test(dh);
 	//cp_test(dh);
 	//create_someFiles(dh);
-  /*cp_test_blocks(dh);
-	trunkedFile(dh);*/
+  cp_test_blocks(dh);
+	trunkedFile(dh);
 
-	char *src=(char*)malloc(sizeof(char)*512*200),*src2=(char*)malloc(sizeof(char)*1024);
+
+	/*char *src=(char*)malloc(sizeof(char)*512*200),*src2=(char*)malloc(sizeof(char)*1024);
 	memset(src,65,sizeof(char)*512*200);
 	memset(src,65,sizeof(char)*1024);
 	FileHandle *f=SimpleFS_createFile(dh,"test");
@@ -612,7 +613,7 @@ int main(void) {
 	SimpleFS_seek(f,512*100);
 	SimpleFS_write(f,src2,1024);
   free(src);
-  free(src2);
+  free(src2);*/
 
 
   /*create_a_bigTree(dh);
@@ -622,12 +623,12 @@ int main(void) {
   dh=SimpleFS_init(fs,disk);
   remove_bigTree(dh);*/
 
-  create_someDir(dh);
+  /*create_someDir(dh);
   DiskDriver_shutdown(disk);
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   dh=SimpleFS_init(fs,disk);
-  remove_bigTree(dh);
+  remove_bigTree(dh);*/
 
   /*cp_test_blocks(dh);
   DiskDriver_shutdown(disk);

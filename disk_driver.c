@@ -215,7 +215,10 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
   new_block=disk->header->first_free_block;
   //if there aren't free blocks
   if(new_block==FAILED){
-    return FAILED;
+		new_block=BitMap_get(disk->bmap,0,BLOCK_FREE);
+		if(new_block==FAILED){
+			return FAILED;
+		}
   }
   retStat=BitMap_test(disk->bmap, new_block);
 
@@ -224,8 +227,12 @@ int DiskDriver_getFreeBlock(DiskDriver* disk, int start){
     new_block=BitMap_get(disk->bmap, start, BLOCK_FREE);
   }
 
-  disk->header->first_free_block=BitMap_get(disk->bmap, new_block+1, BLOCK_FREE);
 
+  retStat=BitMap_get(disk->bmap, new_block+1, BLOCK_FREE);
+	if(retStat==FAILED){
+		retStat=BitMap_get(disk->bmap,0,BLOCK_FREE);
+	}
+	disk->header->first_free_block=retStat;
   // Dec num of free block
   disk->header->free_blocks--;
 
@@ -267,7 +274,7 @@ void DiskDriver_shutdown(DiskDriver* disk){
   //unmapping the mappend memory
   res=munmap(disk->header,occupation*BLOCK_SIZE);
   CHECK_ERR(res==-1,"can't unmap the file");
-  
+
   //closing the file
   close(disk->fd);
   CHECK_ERR(res==-1,"can't close the file");

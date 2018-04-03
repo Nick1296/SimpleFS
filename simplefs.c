@@ -538,7 +538,7 @@ int SimpleFS_seek(FileHandle* f, int pos){
 	}
 	//we calculate the block in which we need to move
 	int DB_max_elements=BLOCK_SIZE-sizeof(BlockHeader);
-	int block_in_file=pos/DB_max_elements;
+	int block_in_file=(pos+DB_max_elements-1)/DB_max_elements;
 	int res;
 	//we check if the block we need exists by checking on the index
 	int pos_in_disk=SimpleFS_getIndex(f,block_in_file);
@@ -701,6 +701,7 @@ int SimpleFS_write(FileHandle* f, void* data, int size){
 	//we remove the blocks after the actual block from the indexes and free them
 	if(f->current_block->next_block!=MISSING){
 		SimpleFS_clearIndexes(f,block->header.block_in_file+1);
+		f->current_block->next_block=MISSING;
 	}
 
 	//we write the changes on our Fcb
