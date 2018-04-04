@@ -191,6 +191,9 @@ int DiskDriver_freeBlock(DiskDriver* disk, int block_num){
   if(disk==NULL) return FAILED;
   if(block_num<0 || block_num>disk->header->num_blocks) return FAILED;
 
+	int status=BitMap_test(disk->bmap,block_num);
+	if(status==BLOCK_FREE) return SUCCESS;
+
   // Change status and check if the status of the bitmap block
   // has been changed correctly
   int sucStatus=BitMap_set(disk->bmap, block_num, BLOCK_FREE);

@@ -3,10 +3,17 @@
 #include "simplefs.h"
 #include <string.h>
 
+void disk_info(DiskDriver* disk){
+	printf("\t Disk summary\n");
+	printf("disk blocks: %d\n",disk->header->num_blocks);
+	printf("disk free blocks: %d\n",disk->header->free_blocks);
+	printf("disk full blocks: %d\n",disk->header->num_blocks-disk->header->free_blocks);
+}
+
 void bitmap_info(DiskDriver *disk){
   int i,j,printed=0,print;
   uint8_t mask;
-  printf("\t Bitmap info\n");
+  printf("\t Bitmap info \n");
   print=disk->header->num_blocks;
   for(i=0;i<(disk->header->num_blocks+7)/8;i++){
     mask=128;
@@ -32,7 +39,7 @@ void driver_test(DiskDriver *disk, int mode){
   printf("num free blocks: %d\n",disk->header->free_blocks );
   printf("first free block: %d\n",disk->header->first_free_block );
 
-  bitmap_info(disk);
+  disk_info(disk);
 
   printf("\t testing getFreeBlock\n");
 
@@ -52,7 +59,7 @@ void driver_test(DiskDriver *disk, int mode){
   result = DiskDriver_flush(disk);
   printf("flush result: %d\n", result);
 
-  if(mode) bitmap_info(disk);
+  if(mode) disk_info(disk);
 
   for(i=0; i<disk->header->num_blocks && mode; i++){
     printf("\t testing disk_read\n");
@@ -71,13 +78,13 @@ void driver_test(DiskDriver *disk, int mode){
 
   }
 
-  bitmap_info(disk);
+  disk_info(disk);
 
   printf("\t testing disk_flush\n");
   result = DiskDriver_flush(disk);
   printf("flush result: %d\n", result);
 
-  bitmap_info(disk);
+  disk_info(disk);
 
 }
 
@@ -115,13 +122,13 @@ void bitmap_test(DiskDriver *disk){
   printf("status:%d, pos: %d\n",1,10);
   BitMap_set(disk->bmap,5,1);
   printf("status:%d, pos:%d\n",1,5);
-  bitmap_info(disk);
+  disk_info(disk);
   BitMap_set(disk->bmap,10,0);
   printf("status:%d, pos: %d\n",0,10);
   BitMap_set(disk->bmap,5,0);
   printf("status:%d, pos:%d\n",0,5);
 
-  bitmap_info(disk);
+  disk_info(disk);
 }
 
 void diskdriver_test(DiskDriver* disk){
@@ -191,6 +198,7 @@ void init_test(SimpleFS *fs){
   printf("pos in dir: %d\n",dh->pos_in_dir);
 }
 void createFile_openFile_closeFile_test(DirectoryHandle* dh){
+	printf("\n\n\t\t Testing SimpleFS_createFile/openFile/closeFile\n\n");
   //firstly we create try to create two file with the same name to test if they are detected as files with the same name
 	printf("creating a file with 128 charaters name\n");
 	int i;
@@ -203,35 +211,27 @@ void createFile_openFile_closeFile_test(DirectoryHandle* dh){
 	printf("result: %p\n",fh);
 	//cleanup of the allocated memory
 	SimpleFS_close(fh);
+	SimpleFS_remove(dh,fname);
 	printf("we create a file with name: test\n");
 	fh=SimpleFS_createFile(dh,"test");
 	printf("result: %p\n",fh);
 	//cleanup of the allocated memory
 	SimpleFS_close(fh);
+	SimpleFS_remove(dh,"test");
   printf("creating a new file named test, for the 2nd time\n");
 	fh=SimpleFS_createFile(dh,"test");
 	printf("result: %p\n",fh);
-
-	//then we create files to test if the directory block are allocated successfully
-	printf("now we create a bunch of files\n");
-  char name[4];
-  for(i=0;i<9;i++){
-    sprintf(name, "%d",i);
-    fh=SimpleFS_createFile(dh,name);
-		printf("result: %p\n",fh);
-		//cleanup of the allocated memory
-		SimpleFS_close(fh);
-  }
 
   fh=SimpleFS_openFile(dh,"test");
 	printf("opened file \"test\": %p\n",fh);
 	printf("closing the file named \"test\"...");
 	SimpleFS_close(fh);
 	printf("done\n");
+	SimpleFS_remove(dh,"test");
 }
 
 void read_seek_write_test(DirectoryHandle* dh){
-	printf("\t\t Testing SimpleFS_write/SimpleFS_seek/SimpleFS_read\n");
+	printf("\n\n\t\t Testing SimpleFS_write/SimpleFS_seek/SimpleFS_read\n\n");
 	FileHandle *f=SimpleFS_createFile(dh,"rsw");
 	char data1[1024],data2[1024];
 	int i,res=1,out=0;
@@ -256,7 +256,7 @@ void read_seek_write_test(DirectoryHandle* dh){
 	res=memcmp(data1,data2,1024*sizeof(char));
 	printf("result :%d\n",res);
 	memset(data2,0,1024*sizeof(char));
-	bitmap_info(f->sfs->disk);
+	disk_info(f->sfs->disk);
 	printf("now we move the cursor to 512 byte and we write and read\n");
 	res=SimpleFS_seek(f,512);
 	printf("seek result :%d\n",res);
@@ -273,7 +273,7 @@ void read_seek_write_test(DirectoryHandle* dh){
 	res=memcmp(data1,data2,512*sizeof(char));
 	printf("result :%d\n",res);
 	memset(data2,0,1024*sizeof(char));
-	bitmap_info(f->sfs->disk);
+	disk_info(f->sfs->disk);
 	printf("now we write another 512 bytes at the end of the file\n");
 	res=SimpleFS_seek(f,1024);
 	printf("seek result :%d\n",res);
@@ -286,7 +286,7 @@ void read_seek_write_test(DirectoryHandle* dh){
 	printf("bytes read :%d\n",out);
 	res=memcmp(data1+512,data2+512,512*sizeof(char));
 	printf("result :%d\n",res);
-	bitmap_info(f->sfs->disk);
+	disk_info(f->sfs->disk);
 	printf("we write a the begining of the file but we use less block than before\n");
 	for(i=0;i<1023;i++){
 		data1[i]='c';
@@ -303,11 +303,12 @@ void read_seek_write_test(DirectoryHandle* dh){
 	printf("bytes read :%d\n",out);
 	res=memcmp(data1,data2,128*sizeof(char));
 	printf("result :%d\n",res);
-	bitmap_info(f->sfs->disk);
+	disk_info(f->sfs->disk);
 	printf("now we try to seek at the end of the file to test if it returns -1\n");
 	res=SimpleFS_seek(f,2048);
 	printf("result :%d\n",res);
 	SimpleFS_close(f);
+	SimpleFS_remove(dh,"rsw");
 }
 
 void readDir_test(DirectoryHandle *dh, int i){
@@ -319,7 +320,7 @@ void readDir_test(DirectoryHandle *dh, int i){
 }
 
 void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
-  printf("\t\tSimpleFS_functions test\n");
+  printf("\n\n\t\tSimpleFS_readDir/changeDir/mkDir test\n\n");
   printf("SimpleFS_changeDir ..\n");
   int ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
@@ -330,6 +331,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   FileHandle* fh=SimpleFS_createFile(dh,name);
   SimpleFS_close(fh);
   readDir_test(dh,1);
+	SimpleFS_remove(dh,"9");
   printf("SimpleFS_mkDir ciao\n");
   ret=SimpleFS_mkDir(dh, "ciao");
   if(ret==FAILED) printf("Errore in mkDir_test1\n");
@@ -348,7 +350,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   if(ret!=FAILED) readDir_test(dh,5);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 
   printf("SimpleFS_changeDir ciao\n");
   ret=SimpleFS_changeDir(dh, "ciao");
@@ -380,6 +382,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   fh=SimpleFS_createFile(dh,name);
   SimpleFS_close(fh);
   readDir_test(dh,12);
+	SimpleFS_remove(dh,name);
   printf("SimpleFS_changeDir sotto ciao\n");
   ret=SimpleFS_changeDir(dh, "sotto ciao");
   sprintf(name, "%d",10);
@@ -387,6 +390,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   fh=SimpleFS_createFile(dh,name);
   SimpleFS_close(fh);
   if(ret!=FAILED) readDir_test(dh,13);
+	SimpleFS_remove(dh,name);
   printf("SimpleFS_changeDir ..\n");
   ret=SimpleFS_changeDir(dh, "..");
   if(ret==FAILED) printf("Errore in changeDir ..\n");
@@ -396,18 +400,21 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle* dh){
   if(ret==FAILED) printf("Errore in changeDir ..\n");
   if(ret!=FAILED) readDir_test(dh,15);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 
   printf("SimpleFS_remove ciao\n");
   ret=SimpleFS_remove(dh, "ciao");
   if(ret==FAILED) printf("Errore in remove ciao\n");
   if(ret!=FAILED) readDir_test(dh,16);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 }
 
 void cp_test(DirectoryHandle *dh){
-	printf("to test the FS we load a file from disk we write it on our disk we re-read it and check if it's correct\n");
+	printf("\n\n\t\t CP test\n\n");
+	disk_info(dh->sfs->disk);
+	readDir_test(dh,1);
+	printf("to test the FS we load a huge file from disk the real disk, we write it on our disk, we re-read it and check if it's correct\n");
 	FileHandle *f=SimpleFS_createFile(dh,"test");
 	int fd=open("./test/war_peace.txt",O_RDONLY,0666);
 	int dim = lseek(fd, 0, SEEK_END);
@@ -420,8 +427,14 @@ void cp_test(DirectoryHandle *dh){
 	int res=memcmp(src,dst,dim*sizeof(char));
 	printf("result: %d\n",res);
 	SimpleFS_close(f);
+	disk_info(dh->sfs->disk);
+	readDir_test(dh,1);
 	free(src);
 	free(dst);
+	printf("removing the file\n");
+	SimpleFS_remove(dh,"test");
+	disk_info(dh->sfs->disk);
+	readDir_test(dh,1);
 }
 
 void cp_test_blocks(DirectoryHandle *dh){
@@ -454,8 +467,8 @@ void cp_test_blocks(DirectoryHandle *dh){
 }
 
 void create_a_bigTree(DirectoryHandle* dh){
-
-  bitmap_info(dh->sfs->disk);
+printf("\n\n \t\t Creating a tree of nested direcories\n\n");
+  disk_info(dh->sfs->disk);
 
   int i=0, ret=0, dim=800;
   char name[4];
@@ -473,7 +486,7 @@ void create_a_bigTree(DirectoryHandle* dh){
 
   if(ret!=FAILED) readDir_test(dh,i);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 
 }
 
@@ -486,12 +499,13 @@ void remove_bigTree(DirectoryHandle* dh){
   if(ret==FAILED) printf("Errore in remove 0\n");
   if(ret!=FAILED) readDir_test(dh,0);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 }
 
 void create_someDir(DirectoryHandle* dh){
+	printf("\n\n\t\t Creating many directories in the same position\n\n");
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 
   int i=0, ret=0, dim=600;
   char name[4];
@@ -513,14 +527,17 @@ void create_someDir(DirectoryHandle* dh){
 
   if(ret!=FAILED) readDir_test(dh,i);
 
-  bitmap_info(dh->sfs->disk);
+  disk_info(dh->sfs->disk);
 }
 
 void create_someFiles(DirectoryHandle* dh){
-	bitmap_info(dh->sfs->disk);
+	printf("\n\n\t\t Creating many files in the same position\n\n");
 
 	int i=0, ret=0, dim=220,length=1024;
 	char name[4],data[length];
+
+	disk_info(dh->sfs->disk);
+
   snprintf(name, 4*sizeof(char), "%d", i);
   printf("SimpleFS_mkDir %s\n", name);
   ret=SimpleFS_mkDir(dh, name);
@@ -542,9 +559,9 @@ void create_someFiles(DirectoryHandle* dh){
 		SimpleFS_close(f);
 	}
 
-	if(ret!=FAILED) readDir_test(dh,i);
+	if(ret!=FAILED) readDir_test(dh,0);
 
-	bitmap_info(dh->sfs->disk);
+	disk_info(dh->sfs->disk);
 }
 
 void trunkedFile(DirectoryHandle *dh){
@@ -587,7 +604,7 @@ int main(void) {
   SimpleFS *fs=(SimpleFS*)malloc(sizeof(SimpleFS));
   char diskname[]="./test/disk";
 	unlink(diskname);
-  fs->block_num=7000;
+  fs->block_num=10000;
   fs->filename=diskname;
   fs->disk=disk;
 
@@ -595,40 +612,50 @@ int main(void) {
   res=DiskDriver_load(fs->disk,fs->filename);
   CHECK_ERR(res==FAILED,"can't load the fs");
   DirectoryHandle *dh=SimpleFS_init(fs,disk);
-	//bitmap_info(disk);
-  //createFile_openFile_closeFile_test(dh);
-	//read_seek_write_test(dh);
-  //readDir_changeDir_mkDir_remove_test(dh);
-	//cp_test(dh);
-	//create_someFiles(dh);
-  cp_test_blocks(dh);
-	trunkedFile(dh);
+  disk_info(disk);
+  createFile_openFile_closeFile_test(dh);
+	read_seek_write_test(dh);
+  readDir_changeDir_mkDir_remove_test(dh);
+	cp_test(dh);
+
+
+	// creating a tree of nested directories and deleting it
+	//by deletion of the first directory which has been created
+  create_a_bigTree(dh);
+  DiskDriver_shutdown(disk);
+  res=DiskDriver_load(fs->disk,fs->filename);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,disk);
+  remove_bigTree(dh);
+
+	//creating a tree of direcories in the same subdirectory
+	//and removing them y removing the direcorty which contains all of them
+  create_someDir(dh);
+  DiskDriver_shutdown(disk);
+  res=DiskDriver_load(fs->disk,fs->filename);
+  CHECK_ERR(res==FAILED,"can't load the fs");
+  dh=SimpleFS_init(fs,disk);
+  remove_bigTree(dh);
+
+	//creating a bunch of file and removing them
+	//by removing the directory which contains them
+	create_someFiles(dh);
+	DiskDriver_shutdown(disk);
+	res=DiskDriver_load(fs->disk,fs->filename);
+	CHECK_ERR(res==FAILED,"can't load the fs");
+	dh=SimpleFS_init(fs,disk);
+	remove_bigTree(dh);
 
 
 	/*char *src=(char*)malloc(sizeof(char)*512*200),*src2=(char*)malloc(sizeof(char)*1024);
-	memset(src,65,sizeof(char)*512*200);
-	memset(src,65,sizeof(char)*1024);
-	FileHandle *f=SimpleFS_createFile(dh,"test");
-	SimpleFS_write(f,src,512*200);
-	SimpleFS_seek(f,512*100);
-	SimpleFS_write(f,src2,1024);
-  free(src);
-  free(src2);*/
-
-
-  /*create_a_bigTree(dh);
-  DiskDriver_shutdown(disk);
-  res=DiskDriver_load(fs->disk,fs->filename);
-  CHECK_ERR(res==FAILED,"can't load the fs");
-  dh=SimpleFS_init(fs,disk);
-  remove_bigTree(dh);*/
-
-  /*create_someDir(dh);
-  DiskDriver_shutdown(disk);
-  res=DiskDriver_load(fs->disk,fs->filename);
-  CHECK_ERR(res==FAILED,"can't load the fs");
-  dh=SimpleFS_init(fs,disk);
-  remove_bigTree(dh);*/
+	 m emset(src,65,*sizeof(char)*512*200);
+	 memset(src,65,sizeof(char)*1024);
+	 FileHandle *f=SimpleFS_createFile(dh,"test");
+	 SimpleFS_write(f,src,512*200);
+	 SimpleFS_seek(f,512*100);
+	 SimpleFS_write(f,src2,1024);
+	 free(src);
+	 free(src2);*/
 
   /*cp_test_blocks(dh);
   DiskDriver_shutdown(disk);

@@ -336,9 +336,8 @@ int SimpleFS_removeChildDir(DirectoryHandle* handle){
 
 				}else{
 					// search the last item in file_block of directory block
-					for(i=0; i<handle->directory->num_entries && handle->dcb->file_blocks[i]!=MISSING; i++);
-					res=DiskDriver_freeBlock(handle->sfs->disk, handle->directory->header.block_in_disk);
-					if(i-1!=0)handle->directory->file_blocks[z]=handle->directory->file_blocks[i-1];
+					for(i=0; i<handle->directory->num_entries && handle->directory->file_blocks[i]!=MISSING; i++);
+					if(i-1>0)handle->directory->file_blocks[z]=handle->directory->file_blocks[i-1];
 					handle->directory->file_blocks[i-1]=MISSING;
 				}
 				handle->directory->num_entries--;
@@ -432,7 +431,7 @@ int SimpleFS_removeFileOnDir(DirectoryHandle* dh, void* element, int pos_in_bloc
 				dir->dcb->num_entries--;
 
 				// We write the updated on file
-				res=DiskDriver_writeBlock(dh->sfs->disk, dir, dir->dcb->header.block_in_disk);
+				res=DiskDriver_writeBlock(dh->sfs->disk, dir->dcb, dir->dcb->header.block_in_disk);
 				if(res==FAILED) return FAILED;
 		}else{
 			// File contenuto nei DB della directory genitore
@@ -666,8 +665,11 @@ int SimpleFS_getIndex(FileHandle *f,int block_in_file){
 	}
 
 	if(index_num==0){
-		//we search in the FFB
-		block_in_disk=f->fcb->blocks[block_in_file];
+		//we search in the FFB and we get the first data block if we seek at the fcb
+		if(block_in_file==0){
+			block_in_file=1;
+		}
+		block_in_disk=f->fcb->blocks[block_in_file-1];
 	}else{
 		//if we get here we need to search in the other index blocks
 		Index *index=(Index*) malloc(sizeof(Index));

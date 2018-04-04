@@ -239,16 +239,13 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
 
     // We populate the handle according to the content informations
     DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
-		DirectoryHandle* father=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
     handle->sfs=d->sfs;
-    handle->dcb=d->directory;
+    handle->dcb=(FirstDirectoryBlock*)malloc(sizeof(FirstDirectoryBlock));
+		memset(handle->dcb,0,sizeof(FirstDirectoryBlock));
 
-		memset(father, 0, sizeof(DirectoryHandle));
-    res=DiskDriver_readBlock(d->sfs->disk, father, d->directory->header.block_in_disk);
+    res=DiskDriver_readBlock(d->sfs->disk, handle->dcb, d->directory->header.block_in_disk);
     CHECK_ERR(res==FAILED,"Error read parent directory");
 
-    handle->pos_in_dir=father->pos_in_dir;
-    handle->pos_in_block=father->pos_in_block;
 
     // Check if directory have parent directory
     if(d->directory->fcb.directory_block!=MISSING){
@@ -259,13 +256,16 @@ int SimpleFS_changeDir(DirectoryHandle* d, const char* dirname){
     } else handle->directory = NULL;
 
     free(d->dcb);
+		if(d->directory!=NULL){
+			free(d->directory);
+		}
 
     // Copy the calculated information
     d->sfs = handle->sfs;
     d->dcb=handle->dcb;
 		memcpy(d->current_block,&(d->dcb->header),sizeof(BlockHeader));
-    d->pos_in_dir=handle->pos_in_dir;
-    d->pos_in_block=handle->pos_in_block;
+    d->pos_in_dir=0;
+    d->pos_in_block=0;
     d->directory=handle->directory;
 
     free(handle);
@@ -393,6 +393,9 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 	// Chiamare search
 	SearchResult* sRes = SimpleFS_search(d, filename);
 	if(sRes->result==FAILED){
+		if(sRes->last_visited_dir_block!=NULL){
+			free(sRes->last_visited_dir_block);
+		}
 		free(sRes);
 		return FAILED;
 	}
@@ -405,7 +408,8 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		DirectoryHandle* handle=(DirectoryHandle*) malloc(sizeof(DirectoryHandle));
 		memset(handle, 0, sizeof(DirectoryHandle));
 		handle->sfs=d->sfs;
-		handle->current_block=&(file->header);
+		handle->current_block=malloc(sizeof(BlockHeader));
+		memcpy(handle->current_block,&(file->header),sizeof(BlockHeader));
 		handle->dcb=file;
 		handle->directory = d->dcb;
 		handle->pos_in_dir=0;
@@ -415,7 +419,11 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		res=SimpleFS_remove_rec(handle);
 		if(res==FAILED){
 			free(file);
+			free(handle->current_block);
 			free(handle);
+			if(sRes->last_visited_dir_block!=NULL){
+				free(sRes->last_visited_dir_block);
+			}
 			free(sRes);
 			return FAILED;
 		}
@@ -452,8 +460,12 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 		// Remove that the directory in the parent directory
 		res=SimpleFS_removeChildDir(handle);
 		CHECK_ERR(res==FAILED, "Error in remove a child dir");
+		free(handle->current_block);
 		free(handle);
 		free(file);
+		if(sRes->last_visited_dir_block!=NULL){
+			free(sRes->last_visited_dir_block);
+		}
 		free(sRes);
 
 		// We write the updated FirstDirectoryBlock
@@ -464,11 +476,18 @@ int SimpleFS_remove(DirectoryHandle* d, const char* filename){
 	}else{
 		// Elimino il file dalla directory in cui risiede
 		SimpleFS_removeFileOnDir(d, sRes->element, sRes->pos_in_block);
+		free(sRes->element);
+		if(sRes->last_visited_dir_block!=NULL){
+			free(sRes->last_visited_dir_block);
+		}
 		free(sRes);
 
 		return SUCCESS;
 	}
-
+	free(sRes->element);
+	if(sRes->last_visited_dir_block!=NULL){
+		free(sRes->last_visited_dir_block);
+	}
 	free(sRes);
   return FAILED;
 }
