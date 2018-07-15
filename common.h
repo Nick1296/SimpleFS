@@ -1,4 +1,5 @@
 #pragma once
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -11,7 +12,7 @@
 #include <signal.h>
 
 
-#define CHECK_ERR(cond,msg)  if (cond) {                       \
+#define CHECK_ERR(cond, msg)  if (cond) {                       \
                               perror(msg);                     \
                               _exit(EXIT_FAILURE);             \
                              }

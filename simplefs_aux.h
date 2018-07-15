@@ -7,11 +7,8 @@ SearchResult* SimpleFS_search(DirectoryHandle* d, const char* name);
 // add a new entry in a directory structure
 void Dir_addentry(DirectoryHandle *d,int file_block);
 
-// removes a file on disk 
+// removes a file on disk
 int SimpleFS_removeFile(SimpleFS *sfs, int file);
-
-// removes passed directory from parent directory
-int SimpleFS_removeChildDir(DirectoryHandle* handle);
 
 // removes a file in directory structure
 int SimpleFS_removeFileOnDir(DirectoryHandle* dh, void* element, int pos_in_block);
