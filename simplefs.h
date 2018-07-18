@@ -17,14 +17,29 @@ typedef struct _BlockHeader {
 } BlockHeader;
 
 
+/* permissions associated with every file in the disk, even directories
+ these permission are divided in three groups: the owner (identified by its uid), the users in th group associated
+ with the owner and all other users
+ the permission is an octal number made by 3 bit which represent (from the MSB) read-write-execute permissions
+the default permissions are 7 for owner, 4 for the group and the others */
+typedef struct _Permissions {
+	unsigned user_uid;
+	unsigned group_uid; //TODO: check if it's correct to store the group uid in the file
+	uint8_t user;
+	uint8_t group;
+	uint8_t others;
+} Permissions;
+
 // this is in the first block of a chain, after the header
 typedef struct _FileControlBlock {
+	Permissions permissions;
 	int directory_block; // first block of the parent directory
 	char name[FILENAME_MAX_LENGTH];
 	int size_in_bytes;
 	int size_in_blocks;
 	int is_dir;          // 0 for file, 1 for dir
 } FileControlBlock;
+
 
 /******************* stuff on disk BEGIN *******************/
 // this is the first physical block of a file
@@ -43,21 +58,6 @@ typedef struct _Index {
 	BlockHeader header;
 	int indexes[(BLOCK_SIZE - sizeof(BlockHeader)) / sizeof(int)];
 } Index;
-
-//  int nextIndex;
-//	int block_in_disk;
-//  int previousIndex;
-
-
-//  int indexes[(BLOCK_SIZE-sizeof(int)-sizeof(int)-sizeof(int))/sizeof(int)];
-/*
- typedef struct _BlockHeader {
-  int previous_block;   // chained list (previous block)
-  int next_block;       // chained list (next_block)
-  int block_in_file;    // position in the file, if 0 we have a file control block
-  int block_in_disk;    // repeated position of the block on the disk
-} BlockHeader;
- */
 // this is one of the next physical blocks of a file
 typedef struct _FileBlock {
 	BlockHeader header;
@@ -122,7 +122,7 @@ typedef struct _SearchResult {
 // returns a handle to the top level directory stored in the first block
 DirectoryHandle *SimpleFS_init(SimpleFS *fs, DiskDriver *disk);
 
-// creates the inital structures, the top level directory
+// creates the initial structures, the top level directory
 // has name "/" and its control block is in the first position
 // it also clears the bitmap of occupied blocks on the disk
 // the current_directory_block is cached in the SimpleFS struct

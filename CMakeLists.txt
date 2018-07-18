@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.0)
+project(SimpleFS)
+set(SOURCES common.h bitmap.c disk_driver.c simplefs.c simplefs_aux.c simplefs_apis.c users.c users.h)
+add_executable(SimpleFS_shell ${SOURCES} shell.c)
+set_target_properties(SimpleFS_shell PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+add_executable(SimpleFS_test ${SOURCES} simplefs_test.c)
+set_target_properties(SimpleFS_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
+set(CMAKE_C_FLAGS_DEBUG "-fsanitize=address -Wall -ggdb -std=gnu99 -Wstrict-prototypes")

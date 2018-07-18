@@ -417,7 +417,7 @@ void cp_test(DirectoryHandle *dh) {
 	printf(
 	"to test the FS we load a huge file from disk the real disk, we write it on our disk, we re-read it and check if it's correct\n");
 	FileHandle *f = SimpleFS_createFile(dh, "test");
-	int fd = open("./test/war_peace.txt", O_RDONLY, 0666);
+	int fd = open("./war_peace.txt", O_RDONLY, 0666);
 	int dim = (int) lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	void *src = malloc(sizeof(char) * dim), *dst = malloc(sizeof(char) * dim);
@@ -443,7 +443,7 @@ void cp_test_blocks(DirectoryHandle *dh) {
 	printf("to test the FS we load a file from disk we write it on our disk we re-read it and check if it's correct\n");
 	printf("we use blocks of 512 bytes\n");
 	FileHandle *f = SimpleFS_createFile(dh, "test1");
-	int fd = open("./test/war_peace.txt", O_RDONLY, 0666);
+	int fd = open("./war_peace.txt", O_RDONLY, 0666);
 	int i, dim = (int) lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	int blocks = (dim + 511) / 512;
@@ -572,7 +572,7 @@ void trunkedFile(DirectoryHandle *dh) {
 	//command to create file for test this function
 	// cp war_peace.txt war_peace_trunc.txt
 	// truncate -s 1682569 war_peace_trunc.txt
-	int fd = open("./test/war_peace_trunc.txt", O_RDONLY, 0666);
+	int fd = open("./war_peace_trunc.txt", O_RDONLY, 0666);
 	int i, dim = (int) lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
 	int blocks = (dim + 511) / 512;
@@ -602,7 +602,7 @@ int main(void) {
 	int res;
 	DiskDriver *disk = (DiskDriver *) malloc(sizeof(DiskDriver));
 	SimpleFS *fs = (SimpleFS *) malloc(sizeof(SimpleFS));
-	char diskname[] = "./test/disk";
+	char diskname[] = "./disk";
 	unlink(diskname);
 	fs->block_num = 20000;
 	fs->filename = diskname;

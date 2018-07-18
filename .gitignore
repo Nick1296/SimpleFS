@@ -58,10 +58,14 @@ dkms.conf
 disk
 testcp
 
-# KDE/vscode
+# KDE/vscode/intellij
 *.kdev*
 .directory
 .vscode
+.idea/
 
 # MAC DI MEDDA
 .DS_Store
+
+#CMAKE
+cmake-build*/
