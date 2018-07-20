@@ -1,19 +1,19 @@
 #pragma once
 
 #include "simplefs.h"
-
+//this struct represents a user account
 typedef struct _User {
-	char *account;
-	char *password;
-	unsigned uid;
-	unsigned gid;
+	char account[128]; //unique username
+	char password[128];
+	unsigned uid; //user unique id
+	unsigned gid; //id of the group associated with the user
 } User;
 
 typedef struct _Group {
-	char *group_name;
-	char *password;
-	unsigned gid;
-	unsigned *group_list;
+	char group_name[128];
+	char password[128];
+	unsigned gid; //unique group id
+	unsigned *group_list; //list of users which are in this group
 } Group;
 
 // adds a new user

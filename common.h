@@ -27,3 +27,4 @@
 #define DIRECTORY 1
 #define FILE 0
 #define FILENAME_MAX_LENGTH 128
+#define PERM_ERR (-2)

@@ -145,7 +145,7 @@ FileHandle *SimpleFS_createFile(DirectoryHandle *d, const char *filename) {
 	//we allocate and initialize the current index block
 	fh->current_index_block = (BlockHeader *) malloc(sizeof(BlockHeader));
 	fh->current_index_block->block_in_disk = file->header.block_in_disk;
-	//we have 0 beacuse our index is the fcb
+	//we have 0 because our index is the fcb
 	fh->current_index_block->block_in_file = 0;
 	fh->current_index_block->next_block = MISSING;
 	fh->current_index_block->previous_block = MISSING;
