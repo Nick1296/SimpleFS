@@ -19,7 +19,7 @@ void bitmap_info(DiskDriver *disk) {
 		printf("block %d:\n", i);
 		for (j = 0; j < 8 && printed < print; j++) {
 			printf("%c", ((mask & disk->bmap->entries[i]) ? '1' : '0'));
-			mask = mask >> 1;
+			mask = mask >>((uint8_t) 1);
 			printed++;
 		}
 		printf("\n");

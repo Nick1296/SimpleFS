@@ -13,7 +13,7 @@ void BitMap_init(BitMap *b, int bitmap_blocks, int disk_blocks, int occupation) 
 	for (i = 0; i < bitmap_blocks; i++) {
 		mask = 0;
 		for (j = 0; j < 8 && written < write; j++) {
-			mask = mask >> 1;
+			mask = mask >> ((uint8_t) 1);
 			mask += 128;
 			written++;
 		}
@@ -53,12 +53,12 @@ int BitMap_get(BitMap *bmap, int start, int status) {
 	for (i = entry; i < bmap->num_blocks && !found; i++) {
 		starting_bit = checked % 8;
 		mask = 128;
-		mask = mask >> starting_bit;
+		mask = mask >> (uint8_t) starting_bit;
 		for (j = starting_bit; j < 8 && checked < bmap->num_bits && !found; j++) {
 			found = ((mask & bmap->entries[i]) ? 1 : 0) == status;
 			if (!found) {
 				checked++;
-				mask = mask >> 1;
+				mask = mask >> ((uint8_t) 1);
 			}
 		}
 	}
@@ -73,8 +73,8 @@ int BitMap_set(BitMap *bmap, int pos, int status) {
 	int entry = (pos) / 8, bit = (pos) % 8;
 	uint8_t mask = 128;
 
-	mask = mask >> bit;
-	bmap->entries[entry] = (status) ? bmap->entries[entry] | mask : bmap->entries[entry] & ~mask;
+	mask = mask >> (uint8_t) bit;
+	bmap->entries[entry] = (status) ? bmap->entries[entry] | mask : ((uint8_t) bmap->entries[entry]) & ~mask;
 
 	return status;
 }
@@ -84,6 +84,6 @@ int BitMap_test(BitMap *bmap, int pos) {
 	int entry = pos / 8;
 	int bit = pos % 8;
 	uint8_t mask = 128;
-	mask = mask >> bit;
+	mask = mask >> (uint8_t) bit;
 	return (bmap->entries[entry] & mask) ? 1 : 0;
 }
