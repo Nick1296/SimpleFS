@@ -276,11 +276,11 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 	}
 
 	SearchResult *search = SimpleFS_search(d, dirname);
-	//if the dir already exists we return FAILED
+	//if the dir doesn't already exists we return FAILED
 	if (search->result == SUCCESS) {
 		FirstDirectoryBlock *file = ((FirstDirectoryBlock *) search->element);
 
-		// we populate the handle according to the readed block
+		// we populate the handle according to the read block
 		DirectoryHandle *handle = (DirectoryHandle *) malloc(sizeof(DirectoryHandle));
 		memset(handle, 0, sizeof(DirectoryHandle));
 		handle->sfs = d->sfs;
