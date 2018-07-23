@@ -446,10 +446,12 @@ void cp_test_blocks(DirectoryHandle *dh) {
 	int fd = open("./war_peace.txt", O_RDONLY, 0666);
 	int i, dim = (int) lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
-	int blocks = (dim + 511) / 512;
-	void *src = malloc(sizeof(char) * dim), *dst = malloc(sizeof(char) * dim);
+	int blocks = (sizeof(char)* dim + 511) / 512;
+	void *src = malloc(sizeof(char) * 512*blocks), *dst = malloc(sizeof(char) * 512 * blocks);
+	memset(src,0, sizeof(char) * 512*blocks);
+	memset(dst, 0, sizeof(char) * 512 * blocks);
 	for (i = 0; i < blocks; i++) {
-		read(fd, src + (512 * i), 512);
+		read(fd, src +(512*i), 512);
 		SimpleFS_write(f, src + (512 * i), 512 * sizeof(char));
 	}
 	SimpleFS_seek(f, 0);

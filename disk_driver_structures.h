@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bitmap_structures.h"
+
 // this is stored in the 1st block of the disk
 typedef struct _DiskHeader {
 	int num_blocks;      // blocks used to store files and directories

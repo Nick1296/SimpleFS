@@ -26,7 +26,7 @@ int SimpleFS_chown(DirectoryHandle* d,FileHandle* f, unsigned new_owner, unsigne
 
 // initializes a file system on an already made disk
 // returns a handle to the top level directory stored in the first block
-DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk);
+DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk, unsigned current_user);
 
 // creates the initial structures, the top level directory
 // has name "/" and its control block is in the first position

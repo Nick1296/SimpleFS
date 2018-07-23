@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+#include "disk_driver_structures.h"
 /*these are structures stored on disk*/
 
 // header, occupies the first portion of each block in the disk

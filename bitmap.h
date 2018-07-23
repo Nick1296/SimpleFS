@@ -1,18 +1,7 @@
 #pragma once
 
 #include <inttypes.h>
-
-typedef struct _BitMap {
-	int num_bits;
-	int num_blocks;
-	uint8_t *entries;
-} BitMap;
-
-typedef struct _BitMapEntryKey {
-	int entry_num;
-	uint8_t bit_num;
-} BitMapEntryKey;
-
+#include "bitmap_structures.h"
 
 // initializes the bitmap given an empty BitMap, the number of bitmap_blocks,
 // the number of disk blocks covered and the number of already occupied disk blocks

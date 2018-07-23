@@ -1,9 +1,7 @@
-#pragma once
 
-#include <gc_cpp.h>
 #include "simplefs.h"
 #include "simplefs_apis.h"
-
+#include <stdio.h>
 
 // checks the permission to authorize the function call
 int check_permissions(uint8_t required, FileControlBlock fcb, unsigned current_user, unsigned *group) {
@@ -36,8 +34,21 @@ int check_permissions(uint8_t required, FileControlBlock fcb, unsigned current_u
 
 // initializes a file system on an already made disk
 // returns a handle to the top level directory stored in the first block
-DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk){
-	return SimpleFS_init(fs,disk);
+DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk,unsigned  current_user){
+	DirectoryHandle *dh;
+	if(current_user==ROOT){
+	dh = SimpleFS_init(fs,disk);
+	//we set the default permissions (755)
+	dh->dcb->fcb.permissions.user_uid=current_user;
+	dh->dcb->fcb.permissions.group_uid=current_user;
+	dh->dcb->fcb.permissions.user= READ | WRITE | EXECUTE;
+	dh->dcb->fcb.permissions.group= READ|EXECUTE;
+	dh->dcb->fcb.permissions.others= READ|EXECUTE;
+	//saving the updated Directory
+	DiskDriver_writeBlock(disk,dh->dcb, sizeof(FirstDirectoryBlock));
+	return dh;
+	}
+	return NULL;
 }
 
 // creates the initial structures, the top level directory
@@ -87,7 +98,7 @@ FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned curren
 int readDir(char **names, DirectoryHandle *d, unsigned current_user, unsigned *file_owner_primary_group) {
 	int res = PERM_ERR;
 	//check if the current user has permissions to perform the operation
-	if (check_permissions(READ, d->dcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(READ, d->dcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		res = SimpleFS_readDir(names, d);
 	}
 	return res;
@@ -98,11 +109,11 @@ int readDir(char **names, DirectoryHandle *d, unsigned current_user, unsigned *f
 FileHandle *openFile(DirectoryHandle *d, const char *filename, unsigned current_user, unsigned *file_owner_primary_group) {
 	FileHandle *f = NULL;
 	//check if the current user has permissions to read the directory
-	if (check_permissions(READ, d->dcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(READ, d->dcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		f = SimpleFS_openFile(d, filename);
 		//check if the current user can read or write the opened file
-		if ((!check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group)) &&
-		    (!check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group))) {
+		if (check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group)!=SUCCESS &&
+		    check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group)!=SUCCESS) {
 			//if not close the file
 			SimpleFS_close(f);
 			f = NULL;
@@ -123,7 +134,7 @@ void closeFile(FileHandle *f) {
 // it requires WRITE permission
 int writeFile(FileHandle *f, void *data, int size, unsigned current_user, unsigned *file_owner_primary_group) {
 	//checking if the user has WRITE permission on the file
-	if (check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		return SimpleFS_write(f, data, size);
 	}
 	return PERM_ERR;
@@ -135,7 +146,7 @@ int writeFile(FileHandle *f, void *data, int size, unsigned current_user, unsign
 // it requires READ permission
 int readFile(FileHandle *f, void *data, int size, unsigned current_user, unsigned *file_owner_primary_group) {
 	//check if the user has READ permission on the file
-	if (check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		return SimpleFS_read(f, data, size);
 	}
 	return PERM_ERR;
@@ -146,8 +157,8 @@ int readFile(FileHandle *f, void *data, int size, unsigned current_user, unsigne
 // it requires WRITE | READ permission
 int seekFile(FileHandle *f, int pos, unsigned current_user, unsigned *file_owner_primary_group) {
 	//check if the user has the read or write permissions
-	if (check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group) ||
-	    check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(READ, f->fcb->fcb, current_user, file_owner_primary_group)==SUCCESS ||
+	    check_permissions(WRITE, f->fcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		return SimpleFS_seek(f, pos);
 	}
 	return PERM_ERR;
@@ -159,7 +170,7 @@ int seekFile(FileHandle *f, int pos, unsigned current_user, unsigned *file_owner
 // it requires EXECUTE permission
 int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsigned *file_owner_primary_group) {
 	//checking EXECUTE permission on the directory
-	if (check_permissions(EXECUTE, d->dcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(EXECUTE, d->dcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		return SimpleFS_changeDir(d, dirname);
 	}
 	return PERM_ERR;
@@ -171,7 +182,7 @@ int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, un
 int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsigned *file_owner_primary_group) {
 	int res, res_disk;
 	//we check if the user has write permission on the current directory
-	if (check_permissions(WRITE, d->dcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(WRITE, d->dcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		res = SimpleFS_mkDir(d, dirname);
 		//we get the DirectoryHandle of the current directory
 		SimpleFS_changeDir(d, dirname);
@@ -199,7 +210,7 @@ int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsign
 // it requires WRITE permission on the directory which contains the element to remove
 int removeFile(DirectoryHandle *d, const char *filename, unsigned current_user, unsigned *file_owner_primary_group) {
 	//we check if the user has write permission on the current directory
-	if (check_permissions(WRITE, d->dcb->fcb, current_user, file_owner_primary_group)) {
+	if (check_permissions(WRITE, d->dcb->fcb, current_user, file_owner_primary_group)==SUCCESS) {
 		return SimpleFS_remove(d, filename);
 	}
 	return PERM_ERR;
