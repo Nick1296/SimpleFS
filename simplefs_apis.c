@@ -196,7 +196,7 @@ int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsign
 		d->dcb->fcb.permissions.others = READ | EXECUTE;
 		//we write the permission on disk
 		res_disk = DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->header.block_in_disk);
-		CHECK_ERR(res_disk == FAILED, "can't erite directory permission on disk")
+		CHECK_ERR(res_disk == FAILED, "can't write directory permission on disk")
 		//we go back to the parent directory
 		SimpleFS_changeDir(d, "..");
 		return res;

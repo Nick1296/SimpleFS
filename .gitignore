@@ -57,7 +57,7 @@ dkms.conf
 #tests
 disk
 testcp
-test/Simplefs*
+/test/SimpleFS*
 
 # KDE/vscode/intellij
 *.kdev*
