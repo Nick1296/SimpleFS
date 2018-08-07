@@ -42,15 +42,15 @@ int load(DiskDriver *disk, const char *filename);
 // returns null on error (file existing, no free blocks)
 // an empty file consists only of a block of type FirstBlock
 // it requires WRITE permission on the DirectoryHandle
-FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned current_user, unsigned *file_owner_primary_group);
+FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp);
 
 // reads in the (preallocated) blocks array, the name of all files in a directory
 // it requires READ permission
-int readDir(char **names, DirectoryHandle *d, unsigned current_user, unsigned *dir_owner_primary_group);
+int readDir(char **names, DirectoryHandle *d, unsigned current_user, int usr_in_grp);
 
 // opens a file in the  directory d. The file should be existing
 // it requires WRITE | READ permission on the file and READ permission on the directory
-FileHandle *openFile(DirectoryHandle *d, const char *filename, unsigned current_user, unsigned *file_owner_primary_group);
+FileHandle *openFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp);
 
 // closes a file handle (destroyes it)
 // it requires no permission
@@ -60,32 +60,32 @@ void closeFile(FileHandle *f);
 // overwriting and allocating new space if necessary
 // returns the number of bytes written
 // it requires WRITE permission
-int writeFile(FileHandle *f, void *data, int size, unsigned current_user, unsigned *file_owner_primary_group);
+int writeFile(FileHandle *f, void *data, int size, unsigned current_user, int usr_in_grp);
 
 // reads in the file, at current position size bytes stored in data
 // overwriting and allocating new space if necessary
 // returns the number of bytes read
 // it requires READ permission
-int readFile(FileHandle *f, void *data, int size, unsigned current_user, unsigned *file_owner_primary_group);
+int readFile(FileHandle *f, void *data, int size, unsigned current_user, int usr_in_grp);
 
 // returns the number of bytes read (moving the current pointer to pos)
 // returns pos on success -1 on error (file too short)
 // it requires WRITE | READ permission
-int seekFile(FileHandle *f, int pos, unsigned current_user, unsigned *file_owner_primary_group);
+int seekFile(FileHandle *f, int pos, unsigned current_user, int usr_in_grp);
 
 // seeks for a directory in d. If dirname is equal to ".." it goes one level up
 // 0 on success, negative value on error
 // it does side effect on the provided handle
 // it requires EXECUTE permission
-int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsigned *dir_owner_primary_group);
+int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int usr_in_grp);
 
 // creates a new directory in the current one (stored in fs->current_directory_block)
 // 0 on success -1 on error
 // it requires WRITE permission
-int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, unsigned *dir_owner_primary_group);
+int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int usr_in_grp);
 
 // removes the file in the current directory
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
 // it requires WRITE permission on the directory which contains the element to remove
-int removeFile(DirectoryHandle *d, const char *filename, unsigned current_user, unsigned *dir_owner_primary_group);
+int removeFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp);

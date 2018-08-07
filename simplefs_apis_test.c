@@ -31,14 +31,13 @@ int main(void) {
 	// we have two users
 	unsigned usr1 = root + 1, usr2 = usr1 + 1;
 	//each of these users has a group
-	unsigned rootgrp[GROUP_SIZE] = {0}, usr1grp[GROUP_SIZE] = {0}, usr2grp[GROUP_SIZE] = {0};
+	int rootgrp, usr1grp, usr2grp;
 	//in root's group there's only root
-	rootgrp[0] = root;
+	rootgrp=FAILED;
 	// in usr1's group there's usr2
-	usr1grp[0] = usr1;
-	usr1grp[1] = usr2;
+	usr1grp=SUCCESS;
 	// in usr2's group there's only usr2
-	usr2grp[0] = usr2;
+	usr2grp=FAILED;
 	
 	DirectoryHandle *usr1_dir, *usr2_dir;
 	
