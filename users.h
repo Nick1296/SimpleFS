@@ -15,16 +15,15 @@
 //this struct represents a user account
 typedef struct _User {
 	char account[NAME_LENGTH]; //unique username
-	char password[PASS_LENGTH];
 	unsigned uid; //user unique id
 	unsigned gid; //id of the group associated with the user
 	struct _User* next; //the next user in the list
 	struct _User *prev; //the next user in the list
 } User;
 
+//this is a group account
 typedef struct _Group {
 	char group_name[NAME_LENGTH];
-	char password[PASS_LENGTH];
 	unsigned gid; //unique group id
 	unsigned group_members[GROUP_SIZE]; //list of users which are in this group
 	struct _Group* next; //the next user in the list
@@ -90,3 +89,7 @@ void delete_user_list(User* lst);
 
 //given a wallet deallocate it along with its content
 void destroy_wallet(Wallet* wallet);
+
+//load the user subsytem and if there are no users in the system creates root user
+//the directory handle given must be the root of the disk
+Wallet* initialize_wallet(DirectoryHandle* dh);

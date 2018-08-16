@@ -574,6 +574,10 @@ int SimpleFS_seek(FileHandle *f, int pos) {
 	if (f == NULL || pos < 0 || pos > f->fcb->fcb.size_in_bytes) {
 		return FAILED;
 	}
+	//we allow seeking at the beginning of an empty file 
+	if(pos==0 && f->fcb->fcb.size_in_bytes==0){
+		return pos;
+	}
 	//we calculate the block in which we need to move
 	int DB_max_elements = BLOCK_SIZE - sizeof(BlockHeader);
 	int block_in_file = (pos + DB_max_elements - 1) / DB_max_elements;

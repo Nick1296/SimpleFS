@@ -107,12 +107,14 @@ FileHandle *openFile(DirectoryHandle *d, const char *filename, unsigned current_
 	//check if the current user has permissions to read the directory
 	if (check_permissions(READ, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
 		f = SimpleFS_openFile(d, filename);
-		//check if the current user can read or write the opened file
-		if (check_permissions(READ, f->fcb->fcb, current_user, usr_in_grp)!=SUCCESS &&
-		    check_permissions(WRITE, f->fcb->fcb, current_user, usr_in_grp)!=SUCCESS) {
-			//if not close the file
-			SimpleFS_close(f);
-			f = NULL;
+		if(f!=NULL) {
+			//check if the current user can read or write the opened file
+			if (check_permissions(READ, f->fcb->fcb, current_user, usr_in_grp) != SUCCESS &&
+			    check_permissions(WRITE, f->fcb->fcb, current_user, usr_in_grp) != SUCCESS) {
+				//if not close the file
+				SimpleFS_close(f);
+				f = NULL;
+			}
 		}
 	}
 	return f;

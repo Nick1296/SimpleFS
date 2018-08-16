@@ -52,7 +52,7 @@ User *read_users(FileHandle *users, Wallet *wallet){
 	// we set res to enter the while
 	res= sizeof(User)- (2*sizeof(User*));
 	User *usr=NULL,*lst;
-	usr = malloc(sizeof(User));
+	usr = (User*) malloc(sizeof(User));
 	lst=usr;
 	lst->next = NULL;
 	int usr_num=0;
@@ -62,7 +62,7 @@ User *read_users(FileHandle *users, Wallet *wallet){
 		//we read a user from the file and fill it into a User element
 		res=readFile(users,lst, sizeof(User)-sizeof(User*),current_user,usr_in_grp);
 		if(res== sizeof(User) - sizeof(User *)){
-			lst->next = malloc(sizeof(User));
+			lst->next =(User*) malloc(sizeof(User));
 			lst = lst->next;
 			lst->next=NULL;
 			usr_num++;
@@ -109,6 +109,10 @@ int save_users(FileHandle *users, User *data, Wallet *wallet){
 // adds a new user
 //new users are always added in the tail of the list
 int useradd(char *username,Wallet* wallet) {
+	//check if the given string respects the memory limit
+	if(strlen(username)>NAME_LENGTH || username==NULL){
+		return FAILED;
+	}
 	// we check if the user list is invalid
 	if(wallet->user_list==NULL){
 		return FAILED;
@@ -136,11 +140,11 @@ int useradd(char *username,Wallet* wallet) {
 		return res;
 	}
 	//we now create the new user
-	User *new_usr=malloc(sizeof(User));
-	strcpy(new_usr->account,username);
+	User *new_usr=(User*) malloc(sizeof(User));
+	memset(new_usr->account,'\0',NAME_LENGTH* sizeof(char));
+	memcpy(new_usr->account, username, strlen(username));
 	new_usr->uid=lst->uid+1;
 	new_usr->next=NULL;
-	new_usr->password[0]='\0';
 	new_usr->gid=(unsigned) res;
 	new_usr->prev=lst;
 	//we add the new usr in the list
@@ -163,6 +167,10 @@ int useradd(char *username,Wallet* wallet) {
 
 // deletes a user
 int userdel(char *username,Wallet* wallet){
+	//check if the given string respects the memory limit
+	if (strlen(username) > NAME_LENGTH || username == NULL) {
+		return FAILED;
+	}
 	//we check if we have enough permissions
 	int res;
 	unsigned current_user=wallet->current_user->uid;
@@ -229,14 +237,14 @@ int userdel(char *username,Wallet* wallet){
 //given a username or uid it searches the corresponding User
 User *usrsrc(Wallet *wallet, char *name, unsigned uid){
 	//we check if we have valid data
-	if(wallet==NULL || (uid==EMPTY && name==NULL)){
+	if(wallet==NULL || (uid==EMPTY && (name==NULL || strlen(name)>NAME_LENGTH))){
 		return NULL;
 	}
 	User *lst = wallet->user_list;
 	int found = 0;
 	//we search the list
 	while (lst != NULL && !found) {
-		if ((uid!=EMPTY || lst->uid == uid) || (name!=NULL && strcmp(name, lst->account) == 0)) {
+		if ((uid!=EMPTY || lst->uid == uid) || (name!=NULL && memcmp(name, lst->account,strlen(name)) == 0)) {
 			found = 1;
 		} else {
 			lst = lst->next;
@@ -253,14 +261,14 @@ User *usrsrc(Wallet *wallet, char *name, unsigned uid){
 //given a username or gid it searches the corresponding Group
 Group *grpsrc(Wallet *wallet, char *name, unsigned gid) {
 	//we check if we have valid data
-	if ((gid==EMPTY && name == NULL) || wallet == NULL) {
+	if ((gid==EMPTY && (name == NULL|| strlen(name)>NAME_LENGTH)) || wallet == NULL) {
 		return NULL;
 	}
 	Group *lst = wallet->group_list;
 	int found = 0;
 	//we search the list
 	while (lst != NULL && !found) {
-		if ((gid!=EMPTY && lst->gid == gid) ||(name!=NULL && strcmp(name, lst->group_name) == 0)) {
+		if ((gid!=EMPTY && lst->gid == gid) ||(name!=NULL && memcmp(name, lst->group_name,strlen(name)) == 0)) {
 			found = 1;
 		} else {
 			lst = lst->next;
@@ -323,7 +331,7 @@ Group *read_groups(FileHandle *groups, Wallet *wallet){
 	// we set res to enter the while
 	res = sizeof(Group) - (2*sizeof(Group*));
 	Group *grp = NULL, *lst;
-	grp = malloc(sizeof(Group));
+	grp =(Group*) malloc(sizeof(Group));
 	lst = grp;
 	lst->next = NULL;
 	int usr_num = 0;
@@ -333,7 +341,7 @@ Group *read_groups(FileHandle *groups, Wallet *wallet){
 		//we read a user from the file and fill it into a User element
 		res = readFile(groups, lst, sizeof(Group) - (2 * sizeof(Group *)), current_user, usr_in_grp);
 		if (res == sizeof(Group) - (2 * sizeof(Group *))) {
-			lst->next = malloc(sizeof(Group));
+			lst->next = (Group *) malloc(sizeof(Group));
 			lst = lst->next;
 			lst->next = NULL;
 			usr_num++;
@@ -398,10 +406,10 @@ int usringrp(User *usr, Group *grp){
 	return FAILED;
 }
 
-// creates a group
+// creates a group, returns the group gid on success
 int groupadd(char *name, Wallet *wallet){
 	//check if we have valid parameters
-	if(name==NULL || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
+	if(name==NULL || strlen(name)>NAME_LENGTH || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
 		return FAILED;
 	}
 	//we search for a group with the same name
@@ -412,17 +420,18 @@ int groupadd(char *name, Wallet *wallet){
 	if (wallet->current_user->uid != ROOT) {
 		return PERM_ERR;
 	}
-	//we need to generate a new gid, which must be unique, to do so we get the last generade gid+1
+	//we need to generate a new gid, which must be unique, to do so we get the last generated gid+1
 	//we get the last created group
 	Group* grp=wallet->group_list;
 	while(grp->next!=NULL){
 		grp=grp->next;
 	}
 	//now we create a new group
-	Group* new_grp=malloc(sizeof(Group));
+	Group* new_grp= (Group *) malloc(sizeof(Group));
 	new_grp->gid=grp->gid+1;
 	//we set the new group as empty
-	memset(new_grp->group_members,EMPTY,GROUP_SIZE);
+	memset(new_grp->group_members,EMPTY,GROUP_SIZE* sizeof(unsigned));
+	memset(new_grp->group_name,'\0',NAME_LENGTH* sizeof(char));
 	memcpy(new_grp->group_name,name,strlen(name));
 	new_grp->next=NULL;
 	new_grp->prev=grp;
@@ -433,14 +442,15 @@ int groupadd(char *name, Wallet *wallet){
 		//we revert the changes
 		grp->next=NULL;
 		free(new_grp);
+		return res;
 	}
-	return res;
+	return new_grp->gid;
 }
 
 //deletes a group
 int groupdel(char *name, Wallet *wallet){
 	// check if we havethe right parameters
-	if(name==NULL || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
+	if(name==NULL || strlen(name) >NAME_LENGTH || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
 		return FAILED;
 	}
 	//we check if we have the right permission
@@ -511,7 +521,7 @@ void delete_group_list(Group *lst) {
 //adds or deletes a user from a group
 int gpasswd(char *group, char *user, Wallet *wallet, int type){
 	// we check if we are given correct parameters
-	if(group==NULL || user==NULL || wallet==NULL || (type!=ADD && type!=REMOVE)){
+	if(group==NULL || strlen(group)>NAME_LENGTH || user==NULL || strlen(user) > NAME_LENGTH || wallet==NULL || (type!=ADD && type!=REMOVE)){
 		return FAILED;
 	}
 	//check if we have the required permissions
@@ -582,9 +592,94 @@ int gpasswd(char *group, char *user, Wallet *wallet, int type){
 
 //given a wallet deallocate it along with its content
 void destroy_wallet(Wallet *wallet){
-	closeFile(wallet->group_file);
-	closeFile(wallet->user_file);
-	delete_group_list(wallet->group_list);
-	delete_user_list(wallet->user_list);
-	free(wallet);
+	if(wallet!=NULL) {
+		if (wallet->current_user != NULL) {
+			closeFile(wallet->group_file);
+		}
+		if (wallet->user_file != NULL) {
+			closeFile(wallet->user_file);
+		}
+		if (wallet->group_list != NULL) {
+			delete_group_list(wallet->group_list);
+		}
+		if (wallet->user_list != NULL) {
+			delete_user_list(wallet->user_list);
+		}
+		free(wallet);
+	}
+}
+
+//load the user subsytem and if there are no users in the system creates root user
+//the directory handle given must be the root of the disk
+Wallet *initialize_wallet(DirectoryHandle *dh){
+	int res,no_users=0;
+	//create the root user
+	User* root=(User*)malloc(sizeof(User));
+	memset(root->account,'\0',NAME_LENGTH*sizeof(char));
+	strcpy(root->account,"root\0");
+	root->uid=ROOT;
+	root->prev=NULL;
+	root->next=NULL;
+	root->gid=ROOT;
+	
+	//initialize the wallet only with the temporary root user
+	Wallet* wallet=(Wallet*)malloc(sizeof(Wallet));
+	wallet->current_user=root;
+	wallet->group_file=NULL;
+	wallet->group_list=NULL;
+	wallet->user_file=NULL;
+	wallet->user_list=NULL;
+	// try to load the users  from the file
+	wallet->user_file=load_users(dh,wallet);
+	if(wallet->user_file==NULL){
+		destroy_wallet(wallet);
+		return NULL;
+	}
+	wallet->user_list=read_users(wallet->user_file,wallet);
+	//we check if the file was empty
+	if(wallet->user_list==NULL){
+		//if the file was empty our user list in formed only by the root user
+		wallet->user_list=root;
+		//we signla that the user list must be save on disk
+				no_users=1;
+	}else{
+		//we load the root user on file
+		wallet->current_user=usrsrc(wallet,NULL,ROOT);
+	}
+	//now we load the groups from the group file
+	wallet->group_file=load_groups(dh,wallet);
+	if(wallet->group_file==NULL){
+		destroy_wallet(wallet);
+		return NULL;
+	}
+	//we load the group list
+	wallet->group_list=read_groups(wallet->group_file,wallet);
+	if(wallet->group_list==NULL){
+		//create the root group if the group file is empty
+		Group *root_grp = (Group *) malloc(sizeof(Group));
+		memset(root_grp->group_name, '\0', NAME_LENGTH * sizeof(char));
+		strcpy(root_grp->group_name, "root");
+		root_grp->gid = ROOT;
+		root_grp->next = NULL;
+		root_grp->prev = NULL;
+		memset(root_grp->group_members, EMPTY, GROUP_SIZE* sizeof(unsigned));
+		root_grp->group_members[0]=ROOT;
+		wallet->group_list=root_grp;
+		//we save the group list  on file
+		res=save_groups(wallet->group_file,wallet->group_list,wallet);
+		if(res==FAILED || res==PERM_ERR){
+			destroy_wallet(wallet);
+			return NULL;
+		}
+	}
+	//if the user file was empty we save the users
+	if (no_users) {
+		//we save our user list on file
+		res = save_users(wallet->user_file, wallet->user_list, wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			destroy_wallet(wallet);
+			return NULL;
+		}
+	}
+	return  wallet;
 }
