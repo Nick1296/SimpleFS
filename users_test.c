@@ -48,4 +48,28 @@ int main(void){
 	res = userdel(usr2, wallet);
 	printf("result:%d\n", res);
 	destroy_wallet(wallet);
+	printf("now we destroy and reload the wallet and perform the same operations\n");
+	wallet=initialize_wallet(dh);
+	printf("add user1\n");
+	res = useradd(usr1, wallet);
+	printf("result:%d\n", res);
+	printf("add user2\n");
+	res = useradd(usr2, wallet);
+	printf("result:%d\n", res);
+	printf("add user1 in user2 group\n");
+	res = gpasswd(usr2, usr1, wallet, ADD);
+	printf("result:%d\n", res);
+	printf("add user2 in user1 group\n");
+	res = gpasswd(usr1, usr2, wallet, ADD);
+	printf("result:%d\n", res);
+	printf("remove user2 in user1 group\n");
+	res = gpasswd(usr1, usr2, wallet, REMOVE);
+	printf("result:%d\n", res);
+	printf("remove user1\n");
+	res = userdel(usr1, wallet);
+	printf("result:%d\n", res);
+	printf("remove user2\n");
+	res = userdel(usr2, wallet);
+	printf("result:%d\n", res);
+	destroy_wallet(wallet);
 }

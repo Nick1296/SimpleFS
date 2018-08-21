@@ -2,6 +2,7 @@
 
 #include "common.h"
 #include "simplefs_structures.h"
+#include "list.h"
 
 //macros for gpasswd operation type
 #define ADD 1
@@ -11,14 +12,11 @@
 
 //all the operation must be executed as root user
 
-//in memory user accounts are represented by a linked list
 //this struct represents a user account
 typedef struct _User {
 	char account[NAME_LENGTH]; //unique username
 	unsigned uid; //user unique id
 	unsigned gid; //id of the group associated with the user
-	struct _User* next; //the next user in the list
-	struct _User *prev; //the next user in the list
 } User;
 
 //this is a group account
@@ -26,17 +24,22 @@ typedef struct _Group {
 	char group_name[NAME_LENGTH];
 	unsigned gid; //unique group id
 	unsigned group_members[GROUP_SIZE]; //list of users which are in this group
-	struct _Group* next; //the next user in the list
-	struct _Group *prev; // the previous user in the list
 } Group;
 
+//struct which contains the last uid and gid generated
+typedef struct _Ids{
+	unsigned last_uid; //last uid generated
+	unsigned last_gid; //last gid generated
+}Ids;
 //this is the struct which contains every useful data about users
 typedef struct _Wallet{
 	User* current_user; // current logged user
-	User* user_list; //in memory user list
-	Group* group_list; // in memory group list
+	ListHead* user_list; //in memory user list
+	ListHead* group_list; // in memory group list
 	FileHandle* user_file; //file handle for /etc/passwd
-	FileHandle* group_file; //gile handle for /etc/group
+	FileHandle* group_file; //file handle for /etc/group
+	FileHandle* ids_file; //file handle for /etc/ids which stores on disk the last uid and gid generated
+	Ids* ids; //last uid and gid generated
 } Wallet;
 
 // adds a new user
@@ -55,37 +58,31 @@ int groupdel(char *name, Wallet *wallet);
 int gpasswd(char *group, char *user, Wallet *wallet, int type);
 
 //given a file handle creates a User list
-User* read_users(FileHandle *users, Wallet *wallet);
+ListHead* read_users(FileHandle *users, Wallet *wallet);
 
 //given the fs root it opens the file containing users if exists, or if not it creates it
 FileHandle* load_users(DirectoryHandle* dh, Wallet *wallet);
 
 //it saves the users array into the file
-int save_users(FileHandle* users,User* data, Wallet *wallet);
+int save_users(FileHandle* users,ListHead* data, Wallet *wallet);
 
 //given a filehandle creates a group list
-Group *read_groups(FileHandle *groups, Wallet *wallet);
+ListHead *read_groups(FileHandle *groups, Wallet *wallet);
 
 //given the fs root it opens the file containing groups or if it does not exists it creates it
 FileHandle *load_groups(DirectoryHandle *etc, Wallet *wallet);
 
 //save the group list into its file
-int save_groups(FileHandle *group, Group *data,Wallet *wallet);
+int save_groups(FileHandle *group, ListHead *data,Wallet *wallet);
 
 //given a username or uid it searches the corresponding User
-User* usrsrc(Wallet* wallet,char* name, unsigned uid);
+ListElement* usrsrc(Wallet* wallet,char* name, unsigned uid);
 
 //given a group name or a gid it searches the corresponding Group
-Group* grpsrc(Wallet* wallet,char* name,unsigned gid);
+ListElement* grpsrc(Wallet* wallet,char* name,unsigned gid);
 
 //check if a user is in a group
 int usringrp(User* usr,Group* grp);
-
-//deletes the group list
-void delete_group_list(Group* lst);
-
-//deletes the user list
-void delete_user_list(User* lst);
 
 //given a wallet deallocate it along with its content
 void destroy_wallet(Wallet* wallet);
@@ -93,3 +90,14 @@ void destroy_wallet(Wallet* wallet);
 //load the user subsytem and if there are no users in the system creates root user
 //the directory handle given must be the root of the disk
 Wallet* initialize_wallet(DirectoryHandle* dh);
+
+//opens or create the file which stores the last uid and gid created by the fs
+//return NULL on error
+FileHandle *load_ids(DirectoryHandle *dh, Wallet *wallet);
+
+//given the handle to the id file we load its content on memory
+//returns NULL on error
+Ids *read_ids(FileHandle *id, Wallet *wallet);
+
+//given the handle to the id file we save on it the ids in the wallet
+int save_ids(FileHandle *id, Wallet *wallet);

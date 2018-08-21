@@ -4,10 +4,11 @@
 #include <stdio.h>
 
 // checks the permission to authorize the function call
+//root user has access to EVERYTHING
 int check_permissions(uint8_t required, FileControlBlock fcb, unsigned current_user, int usr_in_grp) {
-	if (fcb.permissions.user_uid == current_user) {
+	if (fcb.permissions.user_uid == current_user || current_user==ROOT) {
 		//check if the owner has requested permission on the directory
-		if (fcb.permissions.user & required) {
+		if (fcb.permissions.user & required || current_user==ROOT) {
 			return SUCCESS;
 		}
 	} else {

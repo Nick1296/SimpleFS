@@ -29,7 +29,6 @@
 #define FILE 0
 #define FILENAME_MAX_LENGTH 128
 #define PERM_ERR (-2)
-#define ROOT ((unsigned) 1000)
+#define ROOT ((unsigned) 0)
 #define GROUP_SIZE 1024
-#define PASS_LENGTH 128
 #define NAME_LENGTH 128
