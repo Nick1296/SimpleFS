@@ -574,7 +574,7 @@ int SimpleFS_seek(FileHandle *f, int pos) {
 	if (f == NULL || pos < 0 || pos > f->fcb->fcb.size_in_bytes) {
 		return FAILED;
 	}
-	//we allow seeking at the beginning of an empty file 
+	//we allow seeking at the beginning of an empty file
 	if(pos==0 && f->fcb->fcb.size_in_bytes==0){
 		return pos;
 	}
@@ -616,12 +616,12 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 	//we calculate how many byte can fill a data block
 	int DB_max_elements = BLOCK_SIZE - sizeof(BlockHeader);
 	int bytes_written = 0;
-	//we calculate how many blocks we need to write
-	int blocks_needed = (size + DB_max_elements - 1) / DB_max_elements;
+	//how many blocks we need to write
+	int blocks_needed;
 
 	/* current position is stored in FileHandle as pos_in_file,
 	* but we need to express it using current_block
-	* (which is alredy updated according to pos_in_file) and displacement
+	* (which is already updated according to pos_in_file) and displacement
 	*/
 	int displacement;
 	//that's the result of our last write
@@ -648,10 +648,13 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 		CHECK_ERR(res == FAILED, "can't read the current block");
 	}
 
-	//we set the current size of the file and the position in the file accordin to the current block
+	//we set the current size of the file and the position in the file according to the current block
 	f->fcb->fcb.size_in_blocks = (f->current_block->block_in_file > 0) ? f->current_block->block_in_file - 1 : 0;
 	f->fcb->fcb.size_in_bytes = f->pos_in_file;
-
+	
+	//we calculate how many block we need to write according to the actual position in the file
+	blocks_needed = (size + f->pos_in_file -(f->fcb->fcb.size_in_blocks *DB_max_elements) + DB_max_elements - 1) / DB_max_elements;
+	
 	while (blocks_needed > 0 && res != FAILED) {
 		//we clear our block in memory to avoid writing clutter on disk
 		memset(block, 0, sizeof(FileBlock));
@@ -712,7 +715,7 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 			}
 			//and we indicate that our current block has been written
 			current_block_written = 1;
-			//check if we need to overwrite the next blocks or allcocate them
+			//check if we need to overwrite the next blocks or allocate them
 			if (f->current_block->next_block != MISSING) {
 				overwrite = 1;
 			} else {
@@ -725,8 +728,11 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 				} else {
 					bytes_written += size - bytes_written;
 				}
-				//we update the size in blocks of the file
-				f->fcb->fcb.size_in_blocks++;
+				if(overwrite==0 && current_block_written==1) {
+					//we update the size in blocks of the file
+					f->fcb->fcb.size_in_blocks++;
+				}
+				//we decrease the number of block in which we need to write
 				blocks_needed--;
 			}
 		}

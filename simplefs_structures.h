@@ -20,8 +20,8 @@ typedef struct _BlockHeader {
  the permission is an octal number made by 3 bit which represent (from the MSB) read-write-execute permissions
 the default permissions are 7 for owner, 4 for the group and the others */
 typedef struct _Permissions {
-	unsigned user_uid;
-	unsigned group_uid; //TODO: check if it's correct to store the group uid in the file
+	int user_uid;
+	int group_uid; //TODO: check if it's correct to store the group uid in the file
 	uint8_t user;
 	uint8_t group;
 	uint8_t others;

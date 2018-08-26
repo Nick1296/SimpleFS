@@ -8,28 +8,28 @@
 #define ADD 1
 #define REMOVE 0
 //macro to define and empty group entry
-#define EMPTY 0
+#define EMPTY (-1)
 
 //all the operation must be executed as root user
 
 //this struct represents a user account
 typedef struct _User {
 	char account[NAME_LENGTH]; //unique username
-	unsigned uid; //user unique id
-	unsigned gid; //id of the group associated with the user
+	int uid; //user unique id
+	int gid; //id of the group associated with the user
 } User;
 
 //this is a group account
 typedef struct _Group {
 	char group_name[NAME_LENGTH];
-	unsigned gid; //unique group id
-	unsigned group_members[GROUP_SIZE]; //list of users which are in this group
+	int gid; //unique group id
+	int group_members[GROUP_SIZE]; //list of users which are in this group
 } Group;
 
 //struct which contains the last uid and gid generated
 typedef struct _Ids{
-	unsigned last_uid; //last uid generated
-	unsigned last_gid; //last gid generated
+	int last_uid; //last uid generated
+	int last_gid; //last gid generated
 }Ids;
 //this is the struct which contains every useful data about users
 typedef struct _Wallet{
@@ -76,10 +76,10 @@ FileHandle *load_groups(DirectoryHandle *etc, Wallet *wallet);
 int save_groups(FileHandle *group, ListHead *data,Wallet *wallet);
 
 //given a username or uid it searches the corresponding User
-ListElement* usrsrc(Wallet* wallet,char* name, unsigned uid);
+ListElement* usrsrc(Wallet* wallet,char* name, int uid);
 
 //given a group name or a gid it searches the corresponding Group
-ListElement* grpsrc(Wallet* wallet,char* name,unsigned gid);
+ListElement* grpsrc(Wallet* wallet,char* name, int gid);
 
 //check if a user is in a group
 int usringrp(User* usr,Group* grp);

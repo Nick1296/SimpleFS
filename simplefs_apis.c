@@ -5,7 +5,7 @@
 
 // checks the permission to authorize the function call
 //root user has access to EVERYTHING
-int check_permissions(uint8_t required, FileControlBlock fcb, unsigned current_user, int usr_in_grp) {
+int check_permissions(uint8_t required, FileControlBlock fcb, int current_user, int usr_in_grp) {
 	if (fcb.permissions.user_uid == current_user || current_user==ROOT) {
 		//check if the owner has requested permission on the directory
 		if (fcb.permissions.user & required || current_user==ROOT) {
@@ -31,13 +31,13 @@ int check_permissions(uint8_t required, FileControlBlock fcb, unsigned current_u
 
 // initializes a file system on an already made disk
 // returns a handle to the top level directory stored in the first block
-DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk,unsigned  current_user){
+DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk,int  current_user,int user_primary_group){
 	DirectoryHandle *dh;
 	if(current_user==ROOT){
 	dh = SimpleFS_init(fs,disk);
 	//we set the default permissions (755)
 	dh->dcb->fcb.permissions.user_uid=current_user;
-	dh->dcb->fcb.permissions.group_uid=current_user;
+	dh->dcb->fcb.permissions.group_uid=user_primary_group;
 	dh->dcb->fcb.permissions.user= READ | WRITE | EXECUTE;
 	dh->dcb->fcb.permissions.group= READ|EXECUTE;
 	dh->dcb->fcb.permissions.others= READ|EXECUTE;
@@ -53,7 +53,7 @@ DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk,unsigned  current_user){
 // it also clears the bitmap of occupied blocks on the disk
 // the current_directory_block is cached in the SimpleFS struct
 // and set to the top level directory
-int format(SimpleFS *fs, unsigned current_user){
+int format(SimpleFS *fs, int current_user){
 	if(current_user==ROOT){
 		SimpleFS_format(fs);
 		return SUCCESS;
@@ -70,7 +70,7 @@ int load(DiskDriver *disk, const char *filename){
 // returns null on error (file existing, no free blocks)
 // an empty file consists only of a block of type FirstBlock
 // it requires WRITE permission on the DirectoryHandle
-FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp) {
+FileHandle *createFile(DirectoryHandle *d, const char *filename, int current_user,int user_primary_group, int usr_in_grp) {
 	FileHandle *f = NULL;
 	int res;
 	//check if the current user has permissions to perform the operation
@@ -78,7 +78,7 @@ FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned curren
 		f = SimpleFS_createFile(d, filename);
 		//we set the owner and owner group of the newly created file
 		f->fcb->fcb.permissions.user_uid = current_user;
-		f->fcb->fcb.permissions.group_uid = current_user;
+		f->fcb->fcb.permissions.group_uid = user_primary_group;
 		//now we set the default permission on this file (644)
 		f->fcb->fcb.permissions.user = READ | WRITE;
 		f->fcb->fcb.permissions.group = READ;
@@ -92,7 +92,7 @@ FileHandle *createFile(DirectoryHandle *d, const char *filename, unsigned curren
 
 // reads in the (preallocated) blocks array, the name of all files in a directory
 // it requires READ permission
-int readDir(char **names, DirectoryHandle *d, unsigned current_user, int usr_in_grp) {
+int readDir(char **names, DirectoryHandle *d, int current_user, int usr_in_grp) {
 	int res = PERM_ERR;
 	//check if the current user has permissions to perform the operation
 	if (check_permissions(READ, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
@@ -103,7 +103,7 @@ int readDir(char **names, DirectoryHandle *d, unsigned current_user, int usr_in_
 
 // opens a file in the  directory d. The file should be existing
 // it requires WRITE | READ permission on the file and READ permission on the directory
-FileHandle *openFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp) {
+FileHandle *openFile(DirectoryHandle *d, const char *filename, int current_user, int usr_in_grp) {
 	FileHandle *f = NULL;
 	//check if the current user has permissions to read the directory
 	if (check_permissions(READ, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
@@ -131,7 +131,7 @@ void closeFile(FileHandle *f) {
 // overwriting and allocating new space if necessary
 // returns the number of bytes written
 // it requires WRITE permission
-int writeFile(FileHandle *f, void *data, int size, unsigned current_user, int usr_in_grp) {
+int writeFile(FileHandle *f, void *data, int size, int current_user, int usr_in_grp) {
 	//checking if the user has WRITE permission on the file
 	if (check_permissions(WRITE, f->fcb->fcb, current_user, usr_in_grp)==SUCCESS) {
 		return SimpleFS_write(f, data, size);
@@ -143,7 +143,7 @@ int writeFile(FileHandle *f, void *data, int size, unsigned current_user, int us
 // overwriting and allocating new space if necessary
 // returns the number of bytes read
 // it requires READ permission
-int readFile(FileHandle *f, void *data, int size, unsigned current_user, int usr_in_grp) {
+int readFile(FileHandle *f, void *data, int size, int current_user, int usr_in_grp) {
 	//check if the user has READ permission on the file
 	if (check_permissions(READ, f->fcb->fcb, current_user, usr_in_grp)==SUCCESS) {
 		return SimpleFS_read(f, data, size);
@@ -154,7 +154,7 @@ int readFile(FileHandle *f, void *data, int size, unsigned current_user, int usr
 // returns the number of bytes read (moving the current pointer to pos)
 // returns pos on success -1 on error (file too short)
 // it requires WRITE | READ permission
-int seekFile(FileHandle *f, int pos, unsigned current_user, int usr_in_grp) {
+int seekFile(FileHandle *f, int pos, int current_user, int usr_in_grp) {
 	//check if the user has the read or write permissions
 	if (check_permissions(READ, f->fcb->fcb, current_user, usr_in_grp)==SUCCESS ||
 	    check_permissions(WRITE, f->fcb->fcb, current_user, usr_in_grp)==SUCCESS) {
@@ -167,7 +167,7 @@ int seekFile(FileHandle *f, int pos, unsigned current_user, int usr_in_grp) {
 // 0 on success, negative value on error
 // it does side effect on the provided handle
 // it requires EXECUTE permission
-int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int usr_in_grp) {
+int changeDir(DirectoryHandle *d, const char *dirname, int current_user, int usr_in_grp) {
 	//checking EXECUTE permission on the directory
 	if (check_permissions(EXECUTE, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
 		return SimpleFS_changeDir(d, dirname);
@@ -178,7 +178,7 @@ int changeDir(DirectoryHandle *d, const char *dirname, unsigned current_user, in
 // creates a new directory in the current one (stored in fs->current_directory_block)
 // 0 on success -1 on error
 // it requires WRITE permission
-int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int usr_in_grp) {
+int mkDir(DirectoryHandle *d, const char *dirname, int current_user, int user_primary_group, int usr_in_grp) {
 	int res, res_disk;
 	//we check if the user has write permission on the current directory
 	if (check_permissions(WRITE, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
@@ -188,7 +188,7 @@ int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int us
 		//we set default permission for the current user in this directory
 		//we set owner and owner group
 		d->dcb->fcb.permissions.user_uid = current_user;
-		d->dcb->fcb.permissions.group_uid = current_user;
+		d->dcb->fcb.permissions.group_uid = user_primary_group;
 		// we set the directory default permissions (755)
 		d->dcb->fcb.permissions.user = READ | WRITE | EXECUTE;
 		d->dcb->fcb.permissions.group = READ | EXECUTE;
@@ -207,7 +207,7 @@ int mkDir(DirectoryHandle *d, const char *dirname, unsigned current_user, int us
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
 // it requires WRITE permission on the directory which contains the element to remove
-int removeFile(DirectoryHandle *d, const char *filename, unsigned current_user, int usr_in_grp) {
+int removeFile(DirectoryHandle *d, const char *filename, int current_user, int usr_in_grp) {
 	//we check if the user has write permission on the current directory
 	if (check_permissions(WRITE, d->dcb->fcb, current_user, usr_in_grp)==SUCCESS) {
 		return SimpleFS_remove(d, filename);
@@ -220,7 +220,7 @@ it can be called by the root user or the owner of the file
 if one permission is FAILED then the function leaves that permission unmodified
 this function can takes a DirectoryHandle or a FileHandle and modifies the permissions,
 you cant modify permission for a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_chmod(DirectoryHandle* d,FileHandle* f, int user, int group, int others, unsigned current_user){
+int SimpleFS_chmod(DirectoryHandle* d,FileHandle* f, int user, int group, int others, int current_user){
 	//chmod can only be execute by root user
 	if(current_user!=ROOT){
 		return PERM_ERR;
@@ -267,7 +267,7 @@ int SimpleFS_chmod(DirectoryHandle* d,FileHandle* f, int user, int group, int ot
 it can be called by the root user or by the owner of the file
 this function can takes a DirectoryHandle or a FileHandle
 you can't modify ownership of a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_chown(DirectoryHandle *d, FileHandle *f, unsigned new_owner, unsigned current_user){
+int SimpleFS_chown(DirectoryHandle *d, FileHandle *f, int new_owner, int new_owner_primary_group, int current_user){
 // if we have a file we change its ownership
 	int res;
 	if(f!=NULL){
@@ -277,7 +277,7 @@ int SimpleFS_chown(DirectoryHandle *d, FileHandle *f, unsigned new_owner, unsign
 		}
 		//we change the ownership
 		f->fcb->fcb.permissions.user_uid=new_owner;
-		f->fcb->fcb.permissions.group_uid= new_owner;
+		f->fcb->fcb.permissions.group_uid= new_owner_primary_group;
 		// we save the changes on disk
 		res=DiskDriver_writeBlock(f->sfs->disk,f->fcb,f->fcb->header.block_in_disk);
 		CHECK_ERR(res == FAILED, "can't save new ownership of the file")
@@ -291,7 +291,7 @@ int SimpleFS_chown(DirectoryHandle *d, FileHandle *f, unsigned new_owner, unsign
 		}
 		//we change the ownership
 		d->dcb->fcb.permissions.user_uid = new_owner;
-		d->dcb->fcb.permissions.group_uid = new_owner;
+		d->dcb->fcb.permissions.group_uid = new_owner_primary_group;
 		// we save the changes on disk
 		res = DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->header.block_in_disk);
 		CHECK_ERR(res == FAILED, "can't save new ownership of the file")
