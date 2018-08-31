@@ -22,14 +22,14 @@ int shell_init(SimpleFS *fs) {
 	}
 	nameFile[strlen(nameFile) - 1] = '\0';
 	fs->filename = nameFile;
-
+	
 	int res;
 	char format;
 	fs->disk = (DiskDriver *) malloc(sizeof(DiskDriver));
 	memset(fs->disk, 0, sizeof(DiskDriver));
 	// carico il disco
 	res = DiskDriver_load(fs->disk, fs->filename);
-
+	
 	// se non riesco a caricarlo significa che non esiste un disco con quel nome
 	// allora chiedo se vuole crearlo
 	if (res == FAILED) {
@@ -43,7 +43,7 @@ int shell_init(SimpleFS *fs) {
 			printf("%c\n", format);
 		}
 		if (format != 's') return FAILED;
-
+		
 		printf("inserisci il numero di blocchi del \"disco\" -> ");
 		scanf("%d", &(fs->block_num));
 		while (fs->block_num < 0) {
@@ -66,7 +66,7 @@ void shell_info(DiskDriver *disk) {
 	printf("bitmap entries: %d\n", disk->header->bitmap_entries);
 	printf("num free blocks: %d\n", disk->header->free_blocks);
 	printf("first free block: %d\n", disk->header->first_free_block);
-
+	
 }
 
 // Fornisce le informazioni in riguardo alla
@@ -112,7 +112,7 @@ void parse_command(char *command, char *Mytoken,
 	char buf[MAX_COMMAND_SIZE];
 	// Copio i comandi
 	strcpy(buf, command);
-
+	
 	if (strlen(buf) > 1) {
 		// Tokenizzo buffer
 		char *token = strtok(buf, Mytoken);
@@ -217,7 +217,7 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 		return i;
 	}
 	i++;
-
+	
 	// Copia di file dall'esterno verso il nostro filesystem
 	if (toDisk == 1) {
 		// Cerco di aprire entrambi i file
@@ -235,7 +235,7 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 				return i;
 			}
 		}
-
+		
 		// Se tutto è andato a buon fine leggo il file passato come
 		// sorgente dall'inzio e lo scrivo su file destinazione
 		int daLeggere = (int) lseek(fd, 0, SEEK_END);
@@ -259,7 +259,7 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 			fflush(stdout);
 		}
 		printf("]\n");
-
+		
 		// Se la read è andata in errore comunico l'accaduto
 		if (res == -1 && errno != EINTR) {
 			if (resS != FAILED) {
@@ -270,20 +270,20 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 			printf("Errore durante la lettura del file dall'host\n");
 			return i;
 		}
-
+		
 		// Se la write è andata in errore comunico l'accaduto
 		if (resS == FAILED) {
 			SimpleFS_close(fh);
 			printf("Errore durante la scrittura del file su Simplefs\n");
 			return i;
 		}
-
+		
 		// Libero le risorse
 		close(fd);
 		SimpleFS_close(fh);
 		free(buffer);
 	}
-
+	
 	// Copia di file dall'interno verso l'esterno
 	if (toDisk == 2) {
 		// Cerco di aprire entrambi i file
@@ -301,7 +301,7 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 				return i;
 			}
 		}
-
+		
 		// Se tutto è andato a buon fine leggo il file passato come
 		// sorgente dall'inzio e lo scrivo su file destinazione
 		if (SimpleFS_seek(fh, 0) == FAILED) {
@@ -338,7 +338,7 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 			fflush(stdout);
 		}
 		printf("]\n");
-
+		
 		// Se la write è andata in errore comunico l'accaduto
 		if (res == -1 && errno != EINTR) {
 			if (resS != FAILED) {
@@ -349,13 +349,13 @@ int do_copy_file(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init) {
 			printf("Errore durante la scrittura del file sull'host\n");
 			return i;
 		}
-
+		
 		// Libero le risorse
 		close(fd);
 		SimpleFS_close(fh);
 		free(buffer);
 	}
-
+	
 	return i;
 }
 
@@ -367,7 +367,7 @@ int echo(char *argv[MAX_NUM_TOK + 1], DirectoryHandle *d, int i_init) {
 	char *result = malloc(sizeof(char) * MAX_COMMAND_SIZE);
 	FileHandle *fh;
 	int b_scritti;
-
+	
 	for (; argv[i] != NULL && strcmp(argv[i], "\0") != 0; i++) {
 		//composizione stringa finale in result, se si trova '>' result dovrà essere scritto  su file
 		if (strcmp(argv[i], ">") != 0) {
@@ -493,10 +493,10 @@ int do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMM
 			i += echo(argv, dh, i + 1);
 		}
 	}
-
+	
 	// Libero la memoria dai vari comandi
 	for (i = 0; argv[i] != NULL; i++) if (strcmp(argv[i], "\0") != 0) free(argv[i]);
-
+	
 	return AGAIN;
 }
 
@@ -507,7 +507,7 @@ int main(int arg, char **args) {
 	int control = 1;
 	SimpleFS *fs = (SimpleFS *) malloc(sizeof(SimpleFS));
 	DirectoryHandle *dh = NULL;
-
+	
 	//caricamento/inizializzazione del disco
 	res = shell_init(fs);
 	if (res == FAILED) shell_shutdown(fs, dh);
@@ -515,35 +515,35 @@ int main(int arg, char **args) {
 	dh = SimpleFS_init(fs, fs->disk);
 	if (dh == NULL) shell_shutdown(fs, dh);
 	CHECK_ERR(dh == NULL, "can't initialize the disk(2)");
-
+	
 	//per ottenere i comandi inseriti dall'utente
 	char command[1024];
 	char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE];
 	int tok_num = 0;
 	char *ret;
-
+	
 	printf("\n\tI comandi di questa shell inziano per '/', esempio /ls, /cd, /mkdir, ecc.\n\n");
-
+	
 	while (control) {
 		printf("[progettoSO_shell:%s]>", dh->dcb->fcb.name);
-
+		
 		//lettura dei comandi da tastiera
 		ret = fgets(command, MAX_COMMAND_SIZE, stdin);
 		if (ret == NULL) shell_shutdown(fs, dh);
 		CHECK_ERR(ret == NULL, "can't read command from input");
-
+		
 		if (strchr(command, ';') != NULL) parse_command(command, ";", tok_buf, &tok_num);
 		else parse_command(command, "\n", tok_buf, &tok_num);
-
+		
 		// tok_num nullo allora ricomincio
 		if (tok_num <= 0) continue;
-
+		
 		// Chiamo do_cmd che esegue i comandi
 		control = do_cmd(fs, dh, tok_buf, tok_num);
-
+		
 		memset(command, 0, MAX_COMMAND_SIZE);
 		tok_num = 0;
 	}
-
+	
 	return 0;
 }

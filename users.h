@@ -82,7 +82,7 @@ ListElement* usrsrc(Wallet* wallet,char* name, int uid);
 ListElement* grpsrc(Wallet* wallet,char* name, int gid);
 
 //check if a user is in a group
-int usringrp(User* usr,Group* grp);
+int usringrp(User *usr, char *grp_name, int gid, Wallet *wallet);
 
 //given a wallet deallocate it along with its content
 void destroy_wallet(Wallet* wallet);

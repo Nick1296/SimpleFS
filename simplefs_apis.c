@@ -1,7 +1,6 @@
 
 #include "simplefs.h"
 #include "simplefs_apis.h"
-#include <stdio.h>
 
 // checks the permission to authorize the function call
 //root user has access to EVERYTHING
@@ -53,7 +52,7 @@ DirectoryHandle *init(SimpleFS *fs, DiskDriver *disk,int  current_user,int user_
 // it also clears the bitmap of occupied blocks on the disk
 // the current_directory_block is cached in the SimpleFS struct
 // and set to the top level directory
-int format(SimpleFS *fs, int current_user){
+int formatDisk(SimpleFS *fs, int current_user) {
 	if(current_user==ROOT){
 		SimpleFS_format(fs);
 		return SUCCESS;
@@ -62,8 +61,12 @@ int format(SimpleFS *fs, int current_user){
 }
 
 //loads an already initialized disk
-int load(DiskDriver *disk, const char *filename){
+int loadDisk(DiskDriver *disk, const char *filename) {
 	return DiskDriver_load(disk,filename);
+}
+
+void shutdownDisk(DiskDriver *disk) {
+	DiskDriver_shutdown(disk);
 }
 
 // creates an empty file in the directory d

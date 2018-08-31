@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.0)
 project(SimpleFS)
 # we set the source files to be used
 set(SOURCES_NO_PERMS common.h bitmap.c disk_driver.c simplefs.c simplefs_aux.c simplefs_structures.h disk_driver_structures.h bitmap_structures.h)
-set(SOURCES common.h bitmap.c disk_driver.c simplefs.c simplefs_aux.c simplefs_apis.c users.c simplefs_structures.h disk_driver_structures.h bitmap_structures.h list.c)
+set(SOURCES common.h bitmap.c disk_driver.c simplefs.c simplefs_aux.c simplefs_apis.c simplefs_shell_apis.c users.c simplefs_structures.h disk_driver_structures.h bitmap_structures.h list.c)
 #we add the executable targets to be built
 add_executable(SimpleFS_shell ${SOURCES} shell.c)
 add_executable(SimpleFS_test ${SOURCES_NO_PERMS} simplefs_test.c)

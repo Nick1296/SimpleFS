@@ -621,9 +621,19 @@ int save_groups(FileHandle *groups, ListHead *data,Wallet *wallet) {
 }
 
 //check if a user is in a group
-int usringrp(User *usr, Group *grp){
+int usringrp(User *usr, char *grp_name, int gid, Wallet *wallet) {
+	
 	//we check if we have valid parameters
-	if(usr==NULL || grp==NULL){
+	if ((strlen(grp_name) > NAME_LENGTH && gid == MISSING) || wallet == NULL || usr == NULL) {
+		return FAILED;
+	}
+	//we find the group
+	ListElement *lst = grpsrc(wallet, grp_name, gid);
+	Group *grp = NULL;
+	if (lst != NULL) {
+		grp = lst->item;
+	}
+	if (grp == NULL) {
 		return FAILED;
 	}
 	int i=0;
