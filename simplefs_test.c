@@ -19,47 +19,47 @@ void bitmap_info(DiskDriver *disk) {
 		printf("block %d:\n", i);
 		for (j = 0; j < 8 && printed < print; j++) {
 			printf("%c", ((mask & disk->bmap->entries[i]) ? '1' : '0'));
-			mask = mask >>((uint8_t) 1);
+			mask = mask >> ((uint8_t) 1);
 			printed++;
 		}
 		printf("\n");
 	}
-
+	
 }
 
 //mode=0 writes on all blocks and and a non existent once
 //mode=1 read and frees all blocks
 void driver_test(DiskDriver *disk, int mode) {
-
+	
 	printf("\t DiskHeader info:\n");
 	printf("num blocks: %d\n", disk->header->num_blocks);
 	printf("num bitmap blocks: %d\n", disk->header->bitmap_blocks);
 	printf("bitmap entries: %d\n", disk->header->bitmap_entries);
 	printf("num free blocks: %d\n", disk->header->free_blocks);
 	printf("first free block: %d\n", disk->header->first_free_block);
-
+	
 	disk_info(disk);
-
+	
 	printf("\t testing getFreeBlock\n");
-
+	
 	int result, blockToWrite, i;
 	for (i = 0; i < disk->header->num_blocks && !mode; i++) {
 		// provare le altre funzioni
 		blockToWrite = DiskDriver_getFreeBlock(disk, i);
 		printf("disk_getFreeBlock result: %d\n", blockToWrite);
-
+		
 		printf("\t testing disk_write\n");
 		char v[513] = "<Test di scrittura su settore del nostro bellissimo disk_driver, devo scrivere tanto per provare il corretto funzionamento.hjefgkjhgfwsgfkgfwsejkfgshfglsujgfjkhgfjushegjkhdsgfjlhsgfvjlhdfjgyflyfgaelfialrgigsdiufgdriyihulkfuilfuhwlidiujelkifudlgdfjlvshgdshfgsdahjsfgsuyhgkjuddsdydsgflysdfydsgflydgljsgjhshgvfdljhgslhkgdkfvglhgsdlhfghdslgsajhbsdjvfgshfsdhvgsdfklgsjdgfsdhubggfjsdfgsdhjfvgsjgfgsdjhfgjsahfdfgsdilvcfsdgfvckhdsvgcbsdghfgslhcvlhgfdsjhbfhfgdsxlflvkhfgdfhsdbglgdflhegfjlhsagflhjegbfls<dgderlhfgbvs Test>";
 		result = DiskDriver_writeBlock(disk, v, blockToWrite);
 		printf("disk_write result: %d\n", result);
 	}
-
+	
 	printf("\t testing disk_flush\n");
 	result = DiskDriver_flush(disk);
 	printf("flush result: %d\n", result);
-
+	
 	if (mode) disk_info(disk);
-
+	
 	for (i = 0; i < disk->header->num_blocks && mode; i++) {
 		printf("\t testing disk_read\n");
 		char data[BLOCK_SIZE];
@@ -68,28 +68,28 @@ void driver_test(DiskDriver *disk, int mode) {
 		printf("Data readed->%s<-end\n\n", data);
 		memset(data, 0, sizeof(data));
 	}
-
+	
 	if (mode) printf("\n\n\t testing disk_freeBlock\n");
-
+	
 	for (i = disk->header->bitmap_blocks; i < disk->header->num_blocks && mode; i++) {
 		result = DiskDriver_freeBlock(disk, i);
 		printf("libero il blocco: %d\nfreeBlock result: %d\n", i, result);
-
+		
 	}
-
+	
 	disk_info(disk);
-
+	
 	printf("\t testing disk_flush\n");
 	result = DiskDriver_flush(disk);
 	printf("flush result: %d\n", result);
-
+	
 	disk_info(disk);
-
+	
 }
 
 void bitmap_test(DiskDriver *disk) {
 	printf("\t\t\t Testing bitmap module:\n");
-
+	
 	printf("\t\t Testing BitMap_blockToIndex:\n");
 	BitMapEntryKey t1, t2;
 	int b1 = 4, b2 = 11;
@@ -97,25 +97,25 @@ void bitmap_test(DiskDriver *disk) {
 	printf("block: %d, entry_num: %d, bit_num: %d\n", b1, t1.entry_num, t1.bit_num);
 	t2 = BitMap_blockToIndex(b2);
 	printf("block: %d, entry_num: %d, bit_num: %d\n", b2, t2.entry_num, t2.bit_num);
-
+	
 	printf("\t\t Testing BitMap_indexToBlock\n");
 	b1 = BitMap_indexToBlock(t1.entry_num, t1.bit_num);
 	printf("entry:%d, bit_num:%d, block: %d\n", t1.entry_num, t1.bit_num, b1);
 	b2 = BitMap_indexToBlock(t2.entry_num, t2.bit_num);
 	printf("entry:%d, bit_num:%d, block: %d\n", t2.entry_num, t2.bit_num, b2);
-
+	
 	printf("\t\t Testing BitMap_get\n");
 	b1 = BitMap_get(disk->bmap, 6, 0);
 	printf("start:%d, status: %d, bit_num:%d\n", 6, 0, b1);
 	b2 = BitMap_get(disk->bmap, 8, 0);
 	printf("start:%d, status:%d, bit_num:%d\n", 8, 0, b2);
-
+	
 	printf("\t\t Testing BitMap_test\n");
 	b1 = BitMap_test(disk->bmap, 6);
 	printf("status:%d, bit_num:%d\n", 6, b1);
 	b2 = BitMap_test(disk->bmap, 0);
 	printf("status:%d,bit_num:%d\n", 0, b2);
-
+	
 	printf("\t\t Testing BitMap_set\n");
 	BitMap_set(disk->bmap, 10, 1);
 	printf("status:%d, pos: %d\n", 1, 10);
@@ -126,12 +126,12 @@ void bitmap_test(DiskDriver *disk) {
 	printf("status:%d, pos: %d\n", 0, 10);
 	BitMap_set(disk->bmap, 5, 0);
 	printf("status:%d, pos:%d\n", 0, 5);
-
+	
 	disk_info(disk);
 }
 
 void diskdriver_test(DiskDriver *disk) {
-
+	
 	printf("\t\t\t Testing disk driver module:\n");
 	printf("\t\t Testing disk_init:\n");
 	//let's eliminate the previously created file if any
@@ -173,25 +173,25 @@ void init_test(SimpleFS *fs) {
 	dh = SimpleFS_init(fs, fs->disk);
 	printf("now we print the directory handle\n");
 	printf("simplefs: %p\n", dh->sfs);
-
-
+	
+	
 	printf("current_block: %p\n", dh->current_block);
 	printf("\t->prev block: %d\n", dh->current_block->previous_block);
 	printf("\t->next block: %d\n", dh->current_block->next_block);
 	printf("\t->block in file: %d\n", dh->current_block->block_in_file);
-
+	
 	printf("FirstDirectoryBlock: %p\n", dh->dcb);
-
+	
 	printf("\t->FCB:\n");
 	printf("\t\t->parent directory: %d\n", dh->dcb->fcb.directory_block);
 	printf("\t\t->name: %s\n", dh->dcb->fcb.name);
 	printf("\t\t->size in bytes: %d\n", dh->dcb->fcb.size_in_bytes);
 	printf("\t\t->size in blocks: %d\n", dh->dcb->fcb.size_in_blocks);
 	printf("\t\t->is dir: %d\n", dh->dcb->fcb.is_dir);
-
+	
 	printf("\t->num entries: %d\n", dh->dcb->num_entries);
-
-
+	
+	
 	printf("parent directory: %p\n", dh->directory);
 	printf("pos in block: %d\n", dh->pos_in_block);
 	printf("pos in dir: %d\n", dh->pos_in_dir);
@@ -221,7 +221,7 @@ void createFile_openFile_closeFile_test(DirectoryHandle *dh) {
 	printf("creating a new file named test, for the 2nd time\n");
 	fh = SimpleFS_createFile(dh, "test");
 	printf("result: %p\n", fh);
-
+	
 	fh = SimpleFS_openFile(dh, "test");
 	printf("opened file \"test\": %p\n", fh);
 	printf("closing the file named \"test\"...");
@@ -349,9 +349,9 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle *dh) {
 	ret = SimpleFS_changeDir(dh, "..");
 	if (ret == FAILED) printf("Errore in changeDir ..\n");
 	if (ret != FAILED) readDir_test(dh, 5);
-
+	
 	disk_info(dh->sfs->disk);
-
+	
 	printf("SimpleFS_changeDir ciao\n");
 	ret = SimpleFS_changeDir(dh, "ciao");
 	if (ret == FAILED) printf("Errore in changeDir ciao\n");
@@ -368,7 +368,7 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle *dh) {
 	ret = SimpleFS_remove(dh, "ciao");
 	if (ret == FAILED) printf("Errore in remove ciao\n");
 	if (ret != FAILED) readDir_test(dh, 9);
-
+	
 	printf("SimpleFS_mkDir ciao\n");
 	ret = SimpleFS_mkDir(dh, "ciao");
 	if (ret == FAILED) printf("Errore in mkDir_test2\n");
@@ -399,14 +399,14 @@ void readDir_changeDir_mkDir_remove_test(DirectoryHandle *dh) {
 	ret = SimpleFS_changeDir(dh, "..");
 	if (ret == FAILED) printf("Errore in changeDir ..\n");
 	if (ret != FAILED) readDir_test(dh, 15);
-
+	
 	disk_info(dh->sfs->disk);
-
+	
 	printf("SimpleFS_remove ciao\n");
 	ret = SimpleFS_remove(dh, "ciao");
 	if (ret == FAILED) printf("Errore in remove ciao\n");
 	if (ret != FAILED) readDir_test(dh, 16);
-
+	
 	disk_info(dh->sfs->disk);
 }
 
@@ -415,7 +415,7 @@ void cp_test(DirectoryHandle *dh) {
 	disk_info(dh->sfs->disk);
 	readDir_test(dh, 1);
 	printf(
-	"to test the FS we load a huge file from disk the real disk, we write it on our disk, we re-read it and check if it's correct\n");
+			"to test the FS we load a huge file from disk the real disk, we write it on our disk, we re-read it and check if it's correct\n");
 	FileHandle *f = SimpleFS_createFile(dh, "test");
 	int fd = open("./war_peace.txt", O_RDONLY, 0666);
 	int dim = (int) lseek(fd, 0, SEEK_END);
@@ -446,12 +446,12 @@ void cp_test_blocks(DirectoryHandle *dh) {
 	int fd = open("./war_peace.txt", O_RDONLY, 0666);
 	int i, dim = (int) lseek(fd, 0, SEEK_END);
 	lseek(fd, 0, SEEK_SET);
-	int blocks = (sizeof(char)* dim + 511) / 512;
-	void *src = malloc(sizeof(char) * 512*blocks), *dst = malloc(sizeof(char) * 512 * blocks);
-	memset(src,0, sizeof(char) * 512*blocks);
+	int blocks = (sizeof(char) * dim + 511) / 512;
+	void *src = malloc(sizeof(char) * 512 * blocks), *dst = malloc(sizeof(char) * 512 * blocks);
+	memset(src, 0, sizeof(char) * 512 * blocks);
 	memset(dst, 0, sizeof(char) * 512 * blocks);
 	for (i = 0; i < blocks; i++) {
-		read(fd, src +(512*i), 512);
+		read(fd, src + (512 * i), 512);
 		SimpleFS_write(f, src + (512 * i), 512 * sizeof(char));
 	}
 	SimpleFS_seek(f, 0);
@@ -461,9 +461,9 @@ void cp_test_blocks(DirectoryHandle *dh) {
 		//fprintf(stderr,"block %d,result: %d\n",i,res);
 		finalres |= res;
 	}
-
+	
 	printf("final result %d\n", finalres);
-
+	
 	SimpleFS_close(f);
 	free(src);
 	free(dst);
@@ -472,10 +472,10 @@ void cp_test_blocks(DirectoryHandle *dh) {
 void create_a_bigTree(DirectoryHandle *dh) {
 	printf("\n\n \t\t Creating a tree of nested direcories\n\n");
 	disk_info(dh->sfs->disk);
-
+	
 	int i = 0, ret = 0, dim = 800;
 	char name[4];
-
+	
 	for (i = 0; i < dim; i++) {
 		snprintf(name, 4 * sizeof(char), "%d", i);
 		printf("SimpleFS_mkDir %s\n", name);
@@ -486,30 +486,30 @@ void create_a_bigTree(DirectoryHandle *dh) {
 		ret = SimpleFS_changeDir(dh, name);
 		if (ret == FAILED) printf("Errore in changeDir %s\n", name);
 	}
-
+	
 	if (ret != FAILED) readDir_test(dh, i);
-
+	
 	disk_info(dh->sfs->disk);
-
+	
 }
 
 void remove_bigTree(DirectoryHandle *dh) {
-
+	
 	int ret = 0;
 	readDir_test(dh, 0);
 	printf("SimpleFS_remove 0\n");
 	ret = SimpleFS_remove(dh, "0");
 	if (ret == FAILED) printf("Errore in remove 0\n");
 	if (ret != FAILED) readDir_test(dh, 0);
-
+	
 	disk_info(dh->sfs->disk);
 }
 
 void create_someDir(DirectoryHandle *dh) {
 	printf("\n\n\t\t Creating many directories in the same position\n\n");
-
+	
 	disk_info(dh->sfs->disk);
-
+	
 	int i = 0, ret = 0, dim = 600;
 	char name[4];
 	snprintf(name, 4 * sizeof(char), "%d", i);
@@ -520,27 +520,27 @@ void create_someDir(DirectoryHandle *dh) {
 	printf("SimpleFS_changeDir %s\n", name);
 	ret = SimpleFS_changeDir(dh, name);
 	if (ret == FAILED) printf("Errore in changeDir %s\n", name);
-
+	
 	for (i = 1; i < dim; i++) {
 		snprintf(name, 4 * sizeof(char), "%d", i);
 		//printf("SimpleFS_mkDir %s\n", name);
 		ret = SimpleFS_mkDir(dh, name);
 		if (ret == FAILED) printf("Errore in mkDir %s\n", name);
 	}
-
+	
 	if (ret != FAILED) readDir_test(dh, i);
-
+	
 	disk_info(dh->sfs->disk);
 }
 
 void create_someFiles(DirectoryHandle *dh) {
 	printf("\n\n\t\t Creating many files in the same position\n\n");
-
+	
 	int i = 0, ret = 0, dim = 220, length = 1024;
 	char name[4], data[length];
-
+	
 	disk_info(dh->sfs->disk);
-
+	
 	snprintf(name, 4 * sizeof(char), "%d", i);
 	printf("SimpleFS_mkDir %s\n", name);
 	ret = SimpleFS_mkDir(dh, name);
@@ -549,7 +549,7 @@ void create_someFiles(DirectoryHandle *dh) {
 	printf("SimpleFS_changeDir %s\n", name);
 	ret = SimpleFS_changeDir(dh, name);
 	if (ret == FAILED) printf("Errore in changeDir %s\n", name);
-
+	
 	memset(data, 65, sizeof(char) * length);
 	snprintf(name, 4 * sizeof(char), "%d", i);
 	FileHandle *f;
@@ -561,9 +561,9 @@ void create_someFiles(DirectoryHandle *dh) {
 		if (ret != length) printf("Errore in create file\n");
 		SimpleFS_close(f);
 	}
-
+	
 	if (ret != FAILED) readDir_test(dh, 0);
-
+	
 	disk_info(dh->sfs->disk);
 }
 
@@ -594,9 +594,9 @@ void trunkedFile(DirectoryHandle *dh) {
 		fprintf(stdout, "block %d,result: %d\n", i, res);
 		finalres |= res;
 	}
-
+	
 	printf("final result %d\n", finalres);
-
+	
 	SimpleFS_close(f);
 }
 
@@ -609,7 +609,7 @@ int main(void) {
 	fs->block_num = 20000;
 	fs->filename = diskname;
 	fs->disk = disk;
-
+	
 	SimpleFS_format(fs);
 	res = DiskDriver_load(fs->disk, fs->filename);
 	CHECK_ERR(res == FAILED, "can't load the fs");
@@ -619,8 +619,8 @@ int main(void) {
 	read_seek_write_test(dh);
 	readDir_changeDir_mkDir_remove_test(dh);
 	cp_test(dh);
-
-
+	
+	
 	// creating a tree of nested directories and deleting it
 	//by deletion of the first directory which has been created
 	create_a_bigTree(dh);
@@ -629,7 +629,7 @@ int main(void) {
 	CHECK_ERR(res == FAILED, "can't load the fs");
 	dh = SimpleFS_init(fs, disk);
 	remove_bigTree(dh);
-
+	
 	//creating a tree of directories in the same subdirectory
 	//and removing them y removing the directory which contains all of them
 	create_someDir(dh);
@@ -638,7 +638,7 @@ int main(void) {
 	CHECK_ERR(res == FAILED, "can't load the fs");
 	dh = SimpleFS_init(fs, disk);
 	remove_bigTree(dh);
-
+	
 	//creating a bunch of file and removing them
 	//by removing the directory which contains them
 	create_someFiles(dh);
@@ -647,13 +647,13 @@ int main(void) {
 	CHECK_ERR(res == FAILED, "can't load the fs");
 	dh = SimpleFS_init(fs, disk);
 	remove_bigTree(dh);
-
+	
 	cp_test_blocks(dh);
 	DiskDriver_shutdown(disk);
 	res = DiskDriver_load(fs->disk, fs->filename);
 	CHECK_ERR(res == FAILED, "can't load the fs");
 	dh = SimpleFS_init(fs, disk);
-
+	
 	DiskDriver_shutdown(disk);
 	free(disk);
 	free(dh->dcb);

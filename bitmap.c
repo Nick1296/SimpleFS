@@ -49,7 +49,7 @@ int BitMap_get(BitMap *bmap, int start, int status) {
 	//initial displacement in the entry
 	int starting_bit;
 	uint8_t mask;
-
+	
 	for (i = entry; i < bmap->num_blocks && !found; i++) {
 		starting_bit = checked % 8;
 		mask = 128;
@@ -72,10 +72,10 @@ int BitMap_get(BitMap *bmap, int start, int status) {
 int BitMap_set(BitMap *bmap, int pos, int status) {
 	int entry = (pos) / 8, bit = (pos) % 8;
 	uint8_t mask = 128;
-
+	
 	mask = mask >> (uint8_t) bit;
 	bmap->entries[entry] = (status) ? bmap->entries[entry] | mask : ((uint8_t) bmap->entries[entry]) & ~mask;
-
+	
 	return status;
 }
 

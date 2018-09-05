@@ -8,21 +8,21 @@ void SimpleFS_format(SimpleFS *fs) {
 	}
 	// disk initializing in which we clean the bitmap
 	DiskDriver_init(fs->disk, fs->filename, fs->block_num);
-
+	
 	// getting the root block
 	int rootblock = DiskDriver_getFreeBlock(fs->disk, 0);
 	CHECK_ERR(rootblock == FAILED, "can't get the root block from the created disk");
-
+	
 	// allocating the directory block
 	FirstDirectoryBlock *root = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
 	//we set all to 0 to avoid clutter when we write the directory on disk
 	memset(root, 0, sizeof(FirstDirectoryBlock));
-
+	
 	// creating the block header
 	root->header.previous_block = MISSING;
 	root->header.next_block = MISSING;
 	root->header.block_in_file = CONTROL_BLOCK;
-
+	
 	// creating the directory CB
 	root->fcb.directory_block = MISSING;
 	root->header.block_in_disk = rootblock;
@@ -30,7 +30,7 @@ void SimpleFS_format(SimpleFS *fs) {
 	root->fcb.size_in_blocks = 1;
 	root->fcb.size_in_bytes = sizeof(FirstDirectoryBlock);
 	root->fcb.is_dir = DIRECTORY;
-
+	
 	//initializing the entries of the directory
 	root->num_entries = 0;
 	int i = 0;
@@ -38,7 +38,7 @@ void SimpleFS_format(SimpleFS *fs) {
 	     i < (int) ((BLOCK_SIZE - sizeof(BlockHeader) - sizeof(FileControlBlock) - sizeof(int)) / sizeof(int)); i++) {
 		root->file_blocks[i] = MISSING;
 	}
-
+	
 	int res;
 	//writing the directory on disk
 	res = DiskDriver_writeBlock(fs->disk, (void *) root, rootblock);
@@ -56,7 +56,7 @@ DirectoryHandle *SimpleFS_init(SimpleFS *fs, DiskDriver *disk) {
 	fs->disk = disk;
 	int res, current_block = disk->header->bitmap_blocks;
 	FirstDirectoryBlock *block = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
-
+	
 	//we read the first block after the block used by the bitmap, which is the directory block
 	//remeber: we start from 0!
 	res = DiskDriver_readBlock(fs->disk, block, current_block);
@@ -64,7 +64,7 @@ DirectoryHandle *SimpleFS_init(SimpleFS *fs, DiskDriver *disk) {
 		free(block);
 		return NULL;
 	}
-
+	
 	// we populate the handle according to the readed block
 	DirectoryHandle *handle = (DirectoryHandle *) malloc(sizeof(DirectoryHandle));
 	handle->sfs = fs;
@@ -74,7 +74,7 @@ DirectoryHandle *SimpleFS_init(SimpleFS *fs, DiskDriver *disk) {
 	handle->directory = NULL;
 	handle->pos_in_dir = 0;
 	handle->pos_in_block = 0;
-
+	
 	return handle;
 }
 
@@ -83,7 +83,7 @@ FileHandle *SimpleFS_createFile(DirectoryHandle *d, const char *filename) {
 	if (d == NULL || strlen(filename) == 0) {
 		return NULL;
 	}
-
+	
 	//firstly we check if we have at least two free block in the disk
 	//one for the FirstFileBlock
 	//one for the data (that's the minimum space required for a file)
@@ -92,7 +92,7 @@ FileHandle *SimpleFS_createFile(DirectoryHandle *d, const char *filename) {
 		return NULL;
 	}
 	int res;
-
+	
 	SearchResult *search = SimpleFS_search(d, filename);
 	//if the file already exists we return NULL
 	if (search->result == SUCCESS) {
@@ -123,20 +123,20 @@ FileHandle *SimpleFS_createFile(DirectoryHandle *d, const char *filename) {
 	strncpy(file->fcb.name, filename, strlen(filename));
 	file->fcb.size_in_blocks = 0;
 	file->fcb.size_in_bytes = 0;
-
+	
 	//initializing the entries of the index cointained in the fcb
 	file->num_entries = 0;
 	memset(file->blocks, MISSING, sizeof(int) *
 	                              ((BLOCK_SIZE - sizeof(FileControlBlock) - sizeof(BlockHeader) - sizeof(int) -
 	                                sizeof(int)) / sizeof(int)));
-
+	
 	//we create the file on disk
 	res = DiskDriver_writeBlock(d->sfs->disk, file, file_block);
 	CHECK_ERR(res == FAILED, "can't write on the given free block");
-
+	
 	//we update the metadata into the directory
 	Dir_addentry(d, file_block);
-
+	
 	//after creating the file we create a file handle
 	FileHandle *fh = (FileHandle *) malloc(sizeof(FileHandle));
 	//the current block in the creation is the header of the fcb
@@ -160,31 +160,31 @@ FileHandle *SimpleFS_createFile(DirectoryHandle *d, const char *filename) {
 
 // reads in the (preallocated) blocks array, the name of all files in a directory
 int SimpleFS_readDir(char **names, DirectoryHandle *d) {
-
+	
 	char isDir[] = " ->is dir\n   ";
 	char isFile[] = " ->is file\n   ";
 	char newLine[] = "\n   ";
 	char str[] = "directory empty\n";
-
+	
 	int FDB_max_elements = (BLOCK_SIZE - sizeof(BlockHeader) - sizeof(FileControlBlock) - sizeof(int)) / sizeof(int);
 	int Dir_Block_max_elements = (BLOCK_SIZE - sizeof(BlockHeader)) / sizeof(int);
 	int dir_entries = d->dcb->num_entries;
 	int i, res, pos = 0;
-
+	
 	size_t dim_names = (dir_entries + 1) * ((25 + FILENAME_MAX_LENGTH) * sizeof(char));
 	*names = (char *) malloc(dim_names);
 	memset(*names, 0, dim_names);
-
+	
 	strncpy(*names, d->dcb->fcb.name, strlen(d->dcb->fcb.name));
 	strcat(*names, newLine);
-
+	
 	if (dim_names == 1 * ((FILENAME_MAX_LENGTH + 25) * sizeof(char))) {
 		strcat(*names, str);
 		return SUCCESS;
 	}
 	FirstDirectoryBlock *file = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
 	DirectoryBlock *db = (DirectoryBlock *) malloc(sizeof(DirectoryBlock));
-
+	
 	// We search for all the files in the current directory block
 	for (i = 0; i < dir_entries; i++) {
 		// We get the file
@@ -206,7 +206,7 @@ int SimpleFS_readDir(char **names, DirectoryHandle *d) {
 			res = DiskDriver_readBlock(d->sfs->disk, file, db->file_blocks[(i - FDB_max_elements) % Dir_Block_max_elements]);
 			CHECK_ERR(res == FAILED, "Error read dir block in simplefs_readDir");
 		}
-
+		
 		// Copy data of files of current directory
 		sprintf((*names) + strlen(*names), "%d", file->fcb.size_in_bytes);
 		sprintf((*names) + strlen(*names), "%c", ' ');
@@ -215,7 +215,7 @@ int SimpleFS_readDir(char **names, DirectoryHandle *d) {
 		if (file->fcb.is_dir == DIRECTORY) strncat((*names) + len, isDir, strlen(isDir));
 		else strncat((*names) + len, isFile, strlen(isFile));
 	}
-
+	
 	memset(*names + strlen(*names) - 1, 0, 1);
 	free(file);
 	free(db);
@@ -228,27 +228,27 @@ int SimpleFS_readDir(char **names, DirectoryHandle *d) {
 int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 	// Check if passed parameters are valid
 	if (d == NULL || strlen(dirname) == 0) return FAILED;
-
+	
 	int res;
-
+	
 	// Check if the directory where want to move is the current workdir
 	if (strncmp(".", dirname, strlen(dirname)) == 0) return SUCCESS;
-
+	
 	// Check if the directory where want to move is the parent directory
 	if (strncmp("..", dirname, strlen(dirname)) == 0) {
 		// Check if workdir is root dir
 		if (d->directory == NULL) return SUCCESS;
-
+		
 		// We populate the handle according to the content informations
 		DirectoryHandle *handle = (DirectoryHandle *) malloc(sizeof(DirectoryHandle));
 		handle->sfs = d->sfs;
 		handle->dcb = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
 		memset(handle->dcb, 0, sizeof(FirstDirectoryBlock));
-
+		
 		res = DiskDriver_readBlock(d->sfs->disk, handle->dcb, d->directory->header.block_in_disk);
 		CHECK_ERR(res == FAILED, "Error read parent directory");
-
-
+		
+		
 		// Check if directory have parent directory
 		if (d->directory->fcb.directory_block != MISSING) {
 			handle->directory = malloc(sizeof(FirstDirectoryBlock));
@@ -256,12 +256,12 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 			res = DiskDriver_readBlock(d->sfs->disk, handle->directory, d->directory->fcb.directory_block);
 			CHECK_ERR(res == FAILED, "Error read parent directory");
 		} else handle->directory = NULL;
-
+		
 		free(d->dcb);
 		if (d->directory != NULL) {
 			free(d->directory);
 		}
-
+		
 		// Copy the calculated information
 		d->sfs = handle->sfs;
 		d->dcb = handle->dcb;
@@ -269,17 +269,17 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 		d->pos_in_dir = 0;
 		d->pos_in_block = 0;
 		d->directory = handle->directory;
-
+		
 		free(handle);
-
+		
 		return SUCCESS;
 	}
-
+	
 	SearchResult *search = SimpleFS_search(d, dirname);
 	//if the dir doesn't already exists we return FAILED
 	if (search->result == SUCCESS) {
 		FirstDirectoryBlock *file = ((FirstDirectoryBlock *) search->element);
-
+		
 		// we populate the handle according to the read block
 		DirectoryHandle *handle = (DirectoryHandle *) malloc(sizeof(DirectoryHandle));
 		memset(handle, 0, sizeof(DirectoryHandle));
@@ -287,7 +287,7 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 		handle->dcb = file;
 		handle->pos_in_dir = 0;
 		handle->pos_in_block = 0;
-
+		
 		// Check if directory have parent directory
 		if (file->fcb.directory_block != MISSING) {
 			handle->directory = malloc(sizeof(FirstDirectoryBlock));
@@ -295,12 +295,12 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 			res = DiskDriver_readBlock(d->sfs->disk, handle->directory, file->fcb.directory_block);
 			CHECK_ERR(res == FAILED, "Error read parent directory");
 		} else handle->directory = NULL;
-
+		
 		free(d->dcb);
 		if (d->directory != NULL) {
 			free(d->directory);
 		}
-
+		
 		// Copy the calculated information
 		d->sfs = handle->sfs;
 		memcpy(d->current_block, &(file->header), sizeof(BlockHeader));
@@ -308,14 +308,14 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 		d->pos_in_dir = handle->pos_in_dir;
 		d->pos_in_block = handle->pos_in_block;
 		d->directory = handle->directory;
-
+		
 		free(handle);
 		if (search->last_visited_dir_block != NULL) free(search->last_visited_dir_block);
 		free(search);
-
+		
 		return SUCCESS;
 	} else free(search);
-
+	
 	return FAILED;
 }
 
@@ -324,7 +324,7 @@ int SimpleFS_changeDir(DirectoryHandle *d, const char *dirname) {
 int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname) {
 	// Check if passed parameters are valid
 	if (d == NULL || strlen(dirname) == 0) return FAILED;
-
+	
 	SearchResult *search = SimpleFS_search(d, dirname);
 	//if the dir already exists we return FAILED
 	if (search->result == SUCCESS) {
@@ -336,21 +336,21 @@ int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname) {
 		return FAILED;
 	}
 	free(search);
-
+	
 	// getting the root block
 	int rootblock = DiskDriver_getFreeBlock(d->sfs->disk, 0);
 	if (rootblock == FAILED) return FAILED;
-
+	
 	// allocating the directory block
 	FirstDirectoryBlock *root = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
 	//we set all to 0 to avoid clutter when we write the directory on disk
 	memset(root, 0, sizeof(FirstDirectoryBlock));
-
+	
 	// creating the block header
 	root->header.previous_block = MISSING;
 	root->header.next_block = MISSING;
 	root->header.block_in_file = CONTROL_BLOCK;
-
+	
 	// creating the directory CB
 	root->fcb.directory_block = d->dcb->header.block_in_disk;
 	root->header.block_in_disk = rootblock;
@@ -358,12 +358,12 @@ int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname) {
 	root->fcb.size_in_blocks = 0;
 	root->fcb.size_in_bytes = 0;
 	root->fcb.is_dir = DIRECTORY;
-
+	
 	//initializing the entries of the directory
 	root->num_entries = 0;
 	memset(root->file_blocks, MISSING,
 	       ((BLOCK_SIZE - sizeof(BlockHeader) - sizeof(FileControlBlock) - sizeof(int)) / sizeof(int)) * sizeof(int));
-
+	
 	//we update the parent directory
 	Dir_addentry(d, root->header.block_in_disk);
 	int res;
@@ -371,10 +371,10 @@ int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname) {
 	res = DiskDriver_writeBlock(d->sfs->disk, (void *) root, rootblock);
 	free(root);
 	if (res == FAILED) return FAILED;
-
+	
 	res = DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->header.block_in_disk);
 	if (res == FAILED) return FAILED;
-
+	
 	return SUCCESS;
 }
 
@@ -384,14 +384,14 @@ int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname) {
 int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 	// Check if passed parameters are valid
 	if (d == NULL || strlen(filename) == 0) return FAILED;
-
+	
 	int FDB_max_elements = (BLOCK_SIZE - sizeof(BlockHeader) - sizeof(FileControlBlock) - sizeof(int)) / sizeof(int);
 	int Dir_Block_max_elements = (BLOCK_SIZE - sizeof(BlockHeader)) / sizeof(int);
 	int dir_entries = d->dcb->num_entries;
 	int i, res;
-
+	
 	if (dir_entries == 0) return SUCCESS;
-
+	
 	// Chiamare search
 	SearchResult *sRes = SimpleFS_search(d, filename);
 	if (sRes->result == FAILED) {
@@ -401,11 +401,11 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 		free(sRes);
 		return FAILED;
 	}
-
+	
 	// Check if the target file is a directory
 	if (sRes->type == DIRECTORY) {
 		FirstDirectoryBlock *file = (FirstDirectoryBlock *) sRes->element;
-
+		
 		// We populate the handle according to the content informations
 		DirectoryHandle *handle = (DirectoryHandle *) malloc(sizeof(DirectoryHandle));
 		memset(handle, 0, sizeof(DirectoryHandle));
@@ -416,7 +416,7 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 		handle->directory = d->dcb;
 		handle->pos_in_dir = 0;
 		handle->pos_in_block = 0;
-
+		
 		// search eventual child dir
 		res = SimpleFS_remove_rec(handle);
 		if (res == FAILED) {
@@ -483,7 +483,7 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 			}
 			free(db);
 		}
-
+		
 		free(handle->current_block);
 		free(handle);
 		free(file);
@@ -491,12 +491,12 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 			free(sRes->last_visited_dir_block);
 		}
 		free(sRes);
-
+		
 		d->dcb->num_entries--;
 		// We write the updated FirstDirectoryBlock
 		res = DiskDriver_writeBlock(d->sfs->disk, d->dcb, d->dcb->header.block_in_disk);
 		if (res == FAILED) return FAILED;
-
+		
 		return SUCCESS;
 	} else {
 		// Elimino il file dalla directory in cui risiede
@@ -506,7 +506,7 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 			free(sRes->last_visited_dir_block);
 		}
 		free(sRes);
-
+		
 		return SUCCESS;
 	}
 }
@@ -555,7 +555,7 @@ void SimpleFS_close(FileHandle *f) {
 	if (f == NULL) {
 		return;
 	}
-
+	
 	//we deallocate BlockHeader which indicates the current data block in the file
 	free(f->current_block);
 	//we deallocate the current BlockHeader of the index
@@ -575,7 +575,7 @@ int SimpleFS_seek(FileHandle *f, int pos) {
 		return FAILED;
 	}
 	//we allow seeking at the beginning of an empty file
-	if(pos==0 && f->fcb->fcb.size_in_bytes==0){
+	if (pos == 0 && f->fcb->fcb.size_in_bytes == 0) {
 		return pos;
 	}
 	//we calculate the block in which we need to move
@@ -618,7 +618,7 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 	int bytes_written = 0;
 	//how many blocks we need to write
 	int blocks_needed;
-
+	
 	/* current position is stored in FileHandle as pos_in_file,
 	* but we need to express it using current_block
 	* (which is already updated according to pos_in_file) and displacement
@@ -626,11 +626,11 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 	int displacement;
 	//that's the result of our last write
 	int res = SUCCESS;
-
+	
 	// this is the last block written or the fcb if we write in a blank file,
 	void *last_block = malloc(BLOCK_SIZE);
 	FileBlock *block = (FileBlock *) malloc(sizeof(FileBlock));
-
+	
 	//we must write on the current block first, but it could be the fcb
 	int current_block_written = 0;
 	// we must check if there is a block after the current block of data to ber overwritten
@@ -647,13 +647,14 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 		res = DiskDriver_readBlock(f->sfs->disk, last_block, f->current_block->block_in_disk);
 		CHECK_ERR(res == FAILED, "can't read the current block");
 	}
-
+	
 	//we set the current size of the file and the position in the file according to the current block
 	f->fcb->fcb.size_in_blocks = (f->current_block->block_in_file > 0) ? f->current_block->block_in_file - 1 : 0;
 	f->fcb->fcb.size_in_bytes = f->pos_in_file;
 	
 	//we calculate how many block we need to write according to the actual position in the file
-	blocks_needed = (size + f->pos_in_file -(f->fcb->fcb.size_in_blocks *DB_max_elements) + DB_max_elements - 1) / DB_max_elements;
+	blocks_needed =
+			(size + f->pos_in_file - (f->fcb->fcb.size_in_blocks * DB_max_elements) + DB_max_elements - 1) / DB_max_elements;
 	
 	while (blocks_needed > 0 && res != FAILED) {
 		//we clear our block in memory to avoid writing clutter on disk
@@ -728,7 +729,7 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 				} else {
 					bytes_written += size - bytes_written;
 				}
-				if(overwrite==0 && current_block_written==1) {
+				if (overwrite == 0 && current_block_written == 1) {
 					//we update the size in blocks of the file
 					f->fcb->fcb.size_in_blocks++;
 				}
@@ -741,13 +742,13 @@ int SimpleFS_write(FileHandle *f, void *data, int size) {
 	}
 	f->fcb->fcb.size_in_bytes += bytes_written;
 	f->pos_in_file += bytes_written;
-
+	
 	//we remove the blocks after the actual block from the indexes and free them
 	if (f->current_block->next_block != MISSING) {
 		SimpleFS_clearIndexes(f, block->header.block_in_file + 1);
 		f->current_block->next_block = MISSING;
 	}
-
+	
 	//we write the changes on our Fcb
 	res = DiskDriver_writeBlock(f->sfs->disk, f->fcb, f->fcb->header.block_in_disk);
 	CHECK_ERR(res == FAILED, "can't write the chenges of the fcb");

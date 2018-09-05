@@ -1,5 +1,5 @@
 #include "users.h"
-#include "simplefs_apis.h"
+#include "simplefs_shell_apis.h"
 
 //all the operations must be executed as root user
 
@@ -8,68 +8,58 @@
 FileHandle *load_ids(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
 	User *current_user = wallet->current_user;
-	ListElement* grp_lst= grpsrc(wallet, NULL, dh->dcb->fcb.permissions.group_uid);
-	Group* grp=NULL;
-	if(grp_lst!=NULL){
-		grp=grp_lst->item;
-	}
 	//we move into the root directory
 	while (dh->directory != NULL) {
-		res = changeDir(dh, "..", current_user->uid,
-		                usringrp(current_user,grp));
+		res = shell_changeDir(dh, "..", wallet);
 		if (res == FAILED) {
 			return NULL;
 		}
 	}
 	//we move into etc, if this directory does not exist we create it
-	res = changeDir(dh, "etc", current_user->uid,
-	                usringrp(current_user, grp));
+	res = shell_changeDir(dh, "etc", wallet);
 	if (res == FAILED) {
-		res = mkDir(dh, "etc", current_user->uid,current_user->gid,
-		            usringrp(current_user, grp));
+		res = shell_mkDir(dh, "etc", wallet);
 		if (res != FAILED) {
-			res = changeDir(dh, "etc", current_user->uid,
-			                usringrp(current_user, grp));
+			res = shell_changeDir(dh, "etc", wallet);
 		}
 	}
 	if (res == FAILED) {
 		return NULL;
 	}
 	//now we load the uid file or create it if it does not exists
-	FileHandle *ids = openFile(dh, "id", current_user->uid,
-	                           usringrp(current_user, grp));
+	FileHandle *ids = shell_openFile(dh, "id", wallet);
 	if (ids == NULL) {
-		ids = createFile(dh, "id", current_user->uid, current_user->gid,
-		                 usringrp(current_user, grp));
+		ids = shell_createFile(dh, "id", wallet);
 	}
 	return ids;
 }
+
 //given the handle to the id file we load its content on memory
 //returns NULL on error
-Ids* read_ids(FileHandle* id,Wallet* wallet){
+Ids *read_ids(FileHandle *id, Wallet *wallet) {
 	ListElement *grp_lst = grpsrc(wallet, NULL, id->fcb->fcb.permissions.group_uid);
 	Group *grp = NULL;
 	if (grp_lst != NULL) {
 		grp = grp_lst->item;
 	}
-	int res,usr_in_grp = usringrp(wallet->current_user, grp);
+	int res;
 	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
-	res = seekFile(id, 0, current_user, usr_in_grp);
+	res = shell_seekFile(id, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return NULL;
 	}
 	//now we allocate the Ids struct
-	Ids* ids=(Ids*) malloc(sizeof(Ids));
+	Ids *ids = (Ids *) malloc(sizeof(Ids));
 	//we read the uid from file
-	res=readFile(id,&(ids->last_uid), sizeof(int),current_user,usr_in_grp);
-	if (res == FAILED || res == PERM_ERR || res!= sizeof(int)) {
+	res = shell_readFile(id, &(ids->last_uid), sizeof(int), wallet);
+	if (res == FAILED || res == PERM_ERR || res != sizeof(int)) {
 		free(ids);
 		return NULL;
 	}
 	
 	//we read the gid from file
-	res = readFile(id, &(ids->last_gid), sizeof(int), current_user, usr_in_grp);
+	res = shell_readFile(id, &(ids->last_gid), sizeof(int), wallet);
 	if (res == FAILED || res == PERM_ERR || res != sizeof(int)) {
 		free(ids);
 		return NULL;
@@ -84,31 +74,32 @@ int save_ids(FileHandle *id, Wallet *wallet) {
 	if (grp_lst != NULL) {
 		grp = grp_lst->item;
 	}
-	int res, usr_in_grp = usringrp(wallet->current_user, grp);
+	int res;
 	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
-	res = seekFile(id, 0, current_user, usr_in_grp);
+	res = shell_seekFile(id, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
 	//we write the uid to file
-	res = writeFile(id, &(wallet->ids->last_uid), sizeof(int), current_user, usr_in_grp);
+	res = shell_writeFile(id, &(wallet->ids->last_uid), sizeof(int), wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
 	
 	//we write the gid to file
-	res += writeFile(id, &(wallet->ids->last_gid), sizeof(int), current_user, usr_in_grp);
+	res += shell_writeFile(id, &(wallet->ids->last_gid), sizeof(int), wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
 	return res;
 }
+
 //given the fs root it opens the file containing users
 //returns NULL on error
 FileHandle *load_users(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
-	User* current_user=wallet->current_user;
+	User *current_user = wallet->current_user;
 	ListElement *grp_lst = grpsrc(wallet, NULL, dh->dcb->fcb.permissions.group_uid);
 	Group *grp = NULL;
 	if (grp_lst != NULL) {
@@ -116,263 +107,257 @@ FileHandle *load_users(DirectoryHandle *dh, Wallet *wallet) {
 	}
 	//we check that the given directory handle is the one of the root directory
 	while (dh->directory != NULL) {
-		res = changeDir(dh, "..", current_user->uid, usringrp(current_user,grp));
+		res = shell_changeDir(dh, "..", wallet);
 		if (res == FAILED) {
 			return NULL;
 		}
 	}
 	//we move into etc, if this directory does not exist we create it
-	res = changeDir(dh, "etc", current_user->uid,
-	                usringrp(current_user,grp));
+	res = shell_changeDir(dh, "etc", wallet);
 	if (res == FAILED) {
-		res = mkDir(dh, "etc", current_user->uid, current_user->gid,
-		            usringrp(current_user, grp));
+		res = shell_mkDir(dh, "etc", wallet);
 		if (res != FAILED) {
-			res = changeDir(dh, "etc", current_user->uid,
-			                usringrp(current_user, grp));
+			res = shell_changeDir(dh, "etc", wallet);
 		}
 	}
 	if (res == FAILED) {
 		return NULL;
 	}
 	//now we load the passwd file or create it if it does not exists
-	FileHandle *usr = openFile(dh, "passwd", current_user->uid,
-	                           usringrp(current_user, grp));
-	if(usr == NULL){
-		usr=createFile(dh,"passwd", current_user->uid, current_user->gid,
-		               usringrp(current_user, grp));
+	FileHandle *usr = shell_openFile(dh, "passwd", wallet);
+	if (usr == NULL) {
+		usr = shell_createFile(dh, "passwd", wallet);
 	}
 	return usr;
 }
 
 
 //given a file handle creates a User list
-ListHead *read_users(FileHandle *users, Wallet *wallet){
+ListHead *read_users(FileHandle *users, Wallet *wallet) {
 	int res;
 	ListElement *grp_lst = grpsrc(wallet, NULL, users->fcb->fcb.permissions.group_uid);
 	Group *grp = NULL;
 	if (grp_lst != NULL) {
 		grp = grp_lst->item;
 	}
-	int usr_in_grp= usringrp(wallet->current_user,grp);
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to read everything
-	res = seekFile(users, 0, current_user,usr_in_grp);
-	if (res == FAILED || res==PERM_ERR) {
+	res = shell_seekFile(users, 0, wallet);
+	if (res == FAILED || res == PERM_ERR) {
 		return NULL;
 	}
 	//we create the ListHead
-	ListHead* usrlst= (ListHead*) malloc(sizeof(ListHead));
-	usrlst->first=NULL;
-	usrlst->last=NULL;
+	ListHead *usrlst = (ListHead *) malloc(sizeof(ListHead));
+	usrlst->first = NULL;
+	usrlst->last = NULL;
 	
 	//we create the first list element
-	ListElement* lst=(ListElement*)malloc(sizeof(ListElement));
+	ListElement *lst = (ListElement *) malloc(sizeof(ListElement));
 	//we initialize the list element
-	lst->prev=NULL;
-	lst->next=NULL;
-	lst->item=NULL;
+	lst->prev = NULL;
+	lst->next = NULL;
+	lst->item = NULL;
 	//we add it in the list head
-	usrlst->first=lst;
+	usrlst->first = lst;
 	//we allocate the first user element
-	User *tmp=(User*) malloc(sizeof(User));
+	User *tmp = (User *) malloc(sizeof(User));
 	//this variable indicates if the last read operation was successful
-	int usr_read=SUCCESS;
+	int usr_read = SUCCESS;
 	//we read all the user in the file
-	while(usr_read==SUCCESS){
+	while (usr_read == SUCCESS) {
 		//we read a user from the file and fill it into a User element
-		res=readFile(users,tmp, sizeof(User),current_user,usr_in_grp);
-		if(res==sizeof(User)){
+		res = shell_readFile(users, tmp, sizeof(User), wallet);
+		if (res == sizeof(User)) {
 			//we fit the user into the list
-			lst->item=tmp;
+			lst->item = tmp;
 			//we create and initialize the new list element
-			lst->next =(ListElement*) malloc(sizeof(ListElement));
-			lst->next->prev=lst;
+			lst->next = (ListElement *) malloc(sizeof(ListElement));
+			lst->next->prev = lst;
 			lst = lst->next;
-			lst->item=NULL;
-			tmp=(User*) malloc(sizeof(User));
-			lst->next=NULL;
-			usr_read=SUCCESS;
-		}else{
-			usr_read=FAILED;
+			lst->item = NULL;
+			tmp = (User *) malloc(sizeof(User));
+			lst->next = NULL;
+			usr_read = SUCCESS;
+		} else {
+			usr_read = FAILED;
 		}
 	}
 	//we deallocate the last list element because it's empty when we have finished reading from file
 	free(tmp);
-	if(lst->prev!=NULL) {
+	if (lst->prev != NULL) {
 		lst = lst->prev;
 		free(lst->next);
-		lst->next=NULL;
+		lst->next = NULL;
 		//we save the last element in the ListHead
 		usrlst->last = lst;
-	}else{
+	} else {
 		//our list is empty, so we deallocate the list head
 		free(lst);
 		free(usrlst);
-		usrlst=NULL;
+		usrlst = NULL;
 	}
-	if(res!=FAILED){
+	if (res != FAILED) {
 		return usrlst;
-	} else{
+	} else {
 		delete_list(usrlst);
 	}
 	return NULL;
 }
+
 //it saves the users list into the file
-int save_users(FileHandle *users, ListHead *data, Wallet *wallet){
-	if(data==NULL){
+int save_users(FileHandle *users, ListHead *data, Wallet *wallet) {
+	if (data == NULL) {
 		return FAILED;
 	}
-	ListElement* lst=data->first;
+	ListElement *lst = data->first;
 	int res;
 	ListElement *grp_lst = grpsrc(wallet, NULL, users->fcb->fcb.permissions.group_uid);
 	Group *grp = NULL;
 	if (grp_lst != NULL) {
 		grp = grp_lst->item;
 	}
-	int usr_in_grp = usringrp(wallet->current_user, grp);
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
-	res=seekFile(users,0,current_user,usr_in_grp);
-	if(res==FAILED || res==PERM_ERR){
+	res = shell_seekFile(users, 0, wallet);
+	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
-	User* usr;
-	while (lst!=NULL && res!=FAILED) {
+	User *usr;
+	while (lst != NULL && res != FAILED) {
 		usr = lst->item;
 		if (usr != NULL) {
-			res = writeFile(users, usr, sizeof(User), current_user, usr_in_grp);
+			res = shell_writeFile(users, usr, sizeof(User), wallet);
 			lst = lst->next;
 		}
 	}
-	if(res==FAILED || res==PERM_ERR){
+	if (res == FAILED || res == PERM_ERR) {
 		return res;
-	}else{
+	} else {
 		return SUCCESS;
 	}
 }
 
 // adds a new user
 //new users are always added in the tail of the list
-int useradd(char *username,Wallet* wallet) {
+int useradd(char *username, Wallet *wallet) {
 	//check if the given string respects the memory limit
-	if(strlen(username)>NAME_LENGTH || username==NULL){
+	if (strlen(username) > NAME_LENGTH || username == NULL) {
 		return FAILED;
 	}
 	// we check if the user list is invalid
-	if(wallet->user_list==NULL){
+	if (wallet->user_list == NULL) {
 		return FAILED;
 	}
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	//we check if we have enough permissions
-	if(current_user!=ROOT){
+	if (current_user != ROOT) {
 		return PERM_ERR;
 	}
 	//we check if the username it's already in use
-	ListElement *usr_lst=usrsrc(wallet,username,0);
-	if(usr_lst!=NULL){
+	ListElement *usr_lst = usrsrc(wallet, username, 0);
+	if (usr_lst != NULL) {
 		return FAILED;
 	}
 	//we get the last item in the user list
-	ListElement *lst=wallet->user_list->last;
+	ListElement *lst = wallet->user_list->last;
 	//if the username it's not used we calculate a new uid and (the last uid+1)
 	
 	//we create the user group
-	int res= groupadd(username, wallet);
-	if(res==FAILED || res==PERM_ERR){
+	int res = groupadd(username, wallet);
+	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
 	//we now create the new user
-	User *new_usr=(User*) malloc(sizeof(User));
-	memset(new_usr->account,'\0',NAME_LENGTH* sizeof(char));
+	User *new_usr = (User *) malloc(sizeof(User));
+	memset(new_usr->account, '\0', NAME_LENGTH * sizeof(char));
 	memcpy(new_usr->account, username, strlen(username));
-	new_usr->uid=wallet->ids->last_uid+1;
-	new_usr->gid=res;
+	new_usr->uid = wallet->ids->last_uid + 1;
+	new_usr->gid = res;
 	
 	//we create the new list Element
 	ListElement *new_lst = (ListElement *) malloc(sizeof(ListElement));
 	new_lst->prev = lst;
 	new_lst->next = NULL;
-	new_lst->item=new_usr;
-	lst->next=new_lst;
+	new_lst->item = new_usr;
+	lst->next = new_lst;
 	//we update the ListHead
-	wallet->user_list->last=new_lst;
+	wallet->user_list->last = new_lst;
 	
 	//we save the user list into its file
-	res=save_users(wallet->user_file,wallet->user_list,wallet);
-	if(res==FAILED || res==PERM_ERR){
-		lst->next=NULL;
+	res = save_users(wallet->user_file, wallet->user_list, wallet);
+	if (res == FAILED || res == PERM_ERR) {
+		lst->next = NULL;
 		free(new_usr);
 		return res;
 	}
 	//now we add the new user in its group
-	res=gpasswd(username,username,wallet,ADD);
-	if(res==FAILED || res==PERM_ERR){
+	res = gpasswd(username, username, wallet, ADD);
+	if (res == FAILED || res == PERM_ERR) {
 		//we delete the created user and return  the error
-		userdel(username,wallet);
+		userdel(username, wallet);
 		return res;
 	}
 	//now we update the Ids structure
 	wallet->ids->last_uid++;
-	res=save_ids(wallet->ids_file,wallet);
-	if(res==FAILED || res==PERM_ERR){
-		userdel(username,wallet);
+	res = save_ids(wallet->ids_file, wallet);
+	if (res == FAILED || res == PERM_ERR) {
+		userdel(username, wallet);
 	}
 	return SUCCESS;
 }
 
 // deletes a user
-int userdel(char *username,Wallet* wallet){
+int userdel(char *username, Wallet *wallet) {
 	//check if the given string respects the memory limit
 	if (strlen(username) > NAME_LENGTH || username == NULL) {
 		return FAILED;
 	}
 	//we check if we have enough permissions
 	int res;
-	int current_user=wallet->current_user->uid;
-	if(current_user!=ROOT){
+	int current_user = wallet->current_user->uid;
+	if (current_user != ROOT) {
 		return PERM_ERR;
 	}
 	//we check if the user list is valid
-	if(wallet->user_list==NULL){
+	if (wallet->user_list == NULL) {
 		return FAILED;
 	}
 	//we now try to find the user to delete (if exists)
-	ListElement *usr_lst=usrsrc(wallet,username,0);
-	User *usr=NULL;
-	if(usr_lst!=NULL) {
+	ListElement *usr_lst = usrsrc(wallet, username, 0);
+	User *usr = NULL;
+	if (usr_lst != NULL) {
 		usr = (User *) usr_lst->item;
 	}
 	//if we found the user we delete it and update the file
-	if(usr!=NULL){
+	if (usr != NULL) {
 		//before deleting the user we check if the user primary group contains other users
-		ListElement *grp_lst=grpsrc(wallet,username,usr->gid);
-		Group* grp= (Group*) grp_lst->item;
+		ListElement *grp_lst = grpsrc(wallet, username, usr->gid);
+		Group *grp = (Group *) grp_lst->item;
 		//if the user primary group contains other users we can't delete it
-		if(grp->group_members[0]==usr->uid && grp->group_members[1]==MISSING){
-			res=groupdel(username,wallet);
-			if(res==FAILED || res==PERM_ERR){
+		if (grp->group_members[0] == usr->uid && grp->group_members[1] == MISSING) {
+			res = groupdel(username, wallet);
+			if (res == FAILED || res == PERM_ERR) {
 				return res;
 			}
 		}
 		//now we delete the user
-		ListElement *prev=NULL, *next=NULL;
-		if(usr_lst->prev==NULL){
+		ListElement *prev = NULL, *next = NULL;
+		if (usr_lst->prev == NULL) {
 			//we delete the first entry in the list
-			next=usr_lst->next;
-			if(next!=NULL) {
+			next = usr_lst->next;
+			if (next != NULL) {
 				next->prev = NULL;
 			}
-			wallet->user_list->first=next;
-		}else{
-			if(usr_lst->next==NULL){
+			wallet->user_list->first = next;
+		} else {
+			if (usr_lst->next == NULL) {
 				//we delete the last entry in the list
-				prev=usr_lst->prev;
-				if(prev!=NULL) {
+				prev = usr_lst->prev;
+				if (prev != NULL) {
 					prev->next = NULL;
 				}
-				wallet->user_list->last=prev;
-			}else{
+				wallet->user_list->last = prev;
+			} else {
 				//we delete an entry in between the list
 				prev = usr_lst->prev;
 				next = usr_lst->next;
@@ -384,7 +369,7 @@ int userdel(char *username,Wallet* wallet){
 		free(usr_lst->item);
 		free(usr_lst);
 		//we save the changes in the file
-		res=save_users(wallet->user_file,wallet->user_list,wallet);
+		res = save_users(wallet->user_file, wallet->user_list, wallet);
 		if (res == FAILED || res == PERM_ERR) {
 			//we rollback the changes by reloading the list
 			delete_list(wallet->user_list);
@@ -392,27 +377,27 @@ int userdel(char *username,Wallet* wallet){
 			CHECK_ERR(wallet->user_list == NULL, "users subsystem compromised!")
 		}
 		return res;
-	}else{
+	} else {
 		//otherwise we return failed
 		return FAILED;
 	}
 }
 
 //given a username or uid it searches the corresponding User
-ListElement *usrsrc(Wallet *wallet, char *name, int uid){
+ListElement *usrsrc(Wallet *wallet, char *name, int uid) {
 	//we check if we have valid data
-	if((uid==MISSING && name==NULL) || wallet==NULL || wallet->user_list==NULL){
+	if ((uid == MISSING && name == NULL) || wallet == NULL || wallet->user_list == NULL) {
 		return NULL;
 	}
-	if(name!=NULL){
-		if(strlen(name)>NAME_LENGTH){
+	if (name != NULL) {
+		if (strlen(name) > NAME_LENGTH) {
 			return NULL;
 		}
 	}
 	ListElement *lst = wallet->user_list->first;
 	int found = 0;
 	//we search the list by username
-	if(name!=NULL){
+	if (name != NULL) {
 		while (lst != NULL && !found) {
 			if (memcmp(name, ((User *) lst->item)->account, strlen(name)) == 0) {
 				found = 1;
@@ -420,7 +405,7 @@ ListElement *usrsrc(Wallet *wallet, char *name, int uid){
 				lst = lst->next;
 			}
 		}
-	}else{
+	} else {
 		//we search ny uid
 		while (lst != NULL && !found) {
 			if (((User *) lst->item)->uid == uid) {
@@ -431,9 +416,9 @@ ListElement *usrsrc(Wallet *wallet, char *name, int uid){
 		}
 	}
 	//we return the result
-	if(found){
+	if (found) {
 		return lst;
-	}else{
+	} else {
 		return NULL;
 	}
 }
@@ -441,7 +426,7 @@ ListElement *usrsrc(Wallet *wallet, char *name, int uid){
 //given a username or gid it searches the corresponding Group
 ListElement *grpsrc(Wallet *wallet, char *name, int gid) {
 	//we check if we have valid data
-	if ((gid==MISSING && name==NULL)|| wallet == NULL || wallet->group_list==NULL) {
+	if ((gid == MISSING && name == NULL) || wallet == NULL || wallet->group_list == NULL) {
 		return NULL;
 	}
 	if (name != NULL) {
@@ -451,9 +436,9 @@ ListElement *grpsrc(Wallet *wallet, char *name, int gid) {
 	}
 	ListElement *lst = wallet->group_list->first;
 	int found = 0;
-	Group* grp;
+	Group *grp;
 	//we search the list by name of the group
-	if(name!=NULL){
+	if (name != NULL) {
 		while (lst != NULL && lst->item != NULL && !found) {
 			grp = lst->item;
 			if (memcmp(name, grp->group_name, strlen(name)) == 0) {
@@ -462,7 +447,7 @@ ListElement *grpsrc(Wallet *wallet, char *name, int gid) {
 				lst = lst->next;
 			}
 		}
-	}else{
+	} else {
 		//we search by gid
 		while (lst != NULL && lst->item != NULL && !found) {
 			grp = lst->item;
@@ -486,7 +471,7 @@ ListElement *grpsrc(Wallet *wallet, char *name, int gid) {
 // returns NULL on error
 FileHandle *load_groups(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	ListElement *grp_lst = grpsrc(wallet, NULL, dh->dcb->fcb.permissions.group_uid);
 	Group *grp = NULL;
 	if (grp_lst != NULL) {
@@ -494,88 +479,82 @@ FileHandle *load_groups(DirectoryHandle *dh, Wallet *wallet) {
 	}
 	//we check that the given directory handle is the one of the root directory
 	while (dh->directory != NULL) {
-		res = changeDir(dh, "..", current_user, usringrp(wallet->current_user,grp));
+		res = shell_changeDir(dh, "..", wallet);
 		if (res == FAILED) {
 			return NULL;
 		}
 	}
 	//we move into etc, if this directory does not exist we create it
-	res = changeDir(dh, "etc", current_user,
-	                usringrp(wallet->current_user, grp));
+	res = shell_changeDir(dh, "etc", wallet);
 	if (res == FAILED) {
-		res = mkDir(dh, "etc", current_user, wallet->current_user->gid,
-		            usringrp(wallet->current_user, grp));
+		res = shell_mkDir(dh, "etc", wallet);
 		if (res != FAILED) {
-			res = changeDir(dh, "etc", current_user,
-			                usringrp(wallet->current_user, grp));
+			res = shell_changeDir(dh, "etc", wallet);
 		}
 	}
 	if (res == FAILED) {
 		return NULL;
 	}
 	//now we load the group file or create it if it does not exists
-	FileHandle *usr = openFile(dh, "group", current_user,
-	                           usringrp(wallet->current_user, grp));
+	FileHandle *usr = shell_openFile(dh, "group", wallet);
 	if (usr == NULL) {
-		usr = createFile(dh, "group", current_user, wallet->current_user->gid,
-		                 usringrp(wallet->current_user, grp));
+		usr = shell_createFile(dh, "group", wallet);
 	}
 	return usr;
 }
 
 //given a file handle creates a group list
-ListHead *read_groups(FileHandle *groups, Wallet *wallet){
+ListHead *read_groups(FileHandle *groups, Wallet *wallet) {
 	int res;
 	ListElement *file_grp_lst = grpsrc(wallet, NULL, groups->fcb->fcb.permissions.group_uid);
 	Group *file_grp = NULL;
 	if (file_grp_lst != NULL) {
 		file_grp = file_grp_lst->item;
 	}
-	int usr_in_grp = usringrp(wallet->current_user, file_grp);
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
-	res = seekFile(groups, 0, current_user, usr_in_grp);
-	if (res == FAILED || res==PERM_ERR) {
+	res = shell_seekFile(groups, 0, wallet);
+	if (res == FAILED || res == PERM_ERR) {
 		return NULL;
 	}
 	//we create our list head
-	ListHead *grp_lst=(ListHead*) malloc(sizeof(ListHead));
+	ListHead *grp_lst = (ListHead *) malloc(sizeof(ListHead));
 	//we allocate memory for the first list element containing the group
-	ListElement *lst=(ListElement*) malloc(sizeof(ListElement));
-	lst->item =(Group*) malloc(sizeof(Group));
+	ListElement *lst = (ListElement *) malloc(sizeof(ListElement));
+	lst->item = (Group *) malloc(sizeof(Group));
 	lst->next = NULL;
-	lst->prev=NULL;
-	grp_lst->first=lst;
+	lst->prev = NULL;
+	grp_lst->first = lst;
 	int grp_read = SUCCESS;
 	//we read all the user in the file
-	while (grp_read==SUCCESS) {
+	while (grp_read == SUCCESS) {
 		
 		//we read a user from the file and fill it into a User element
-		res = readFile(groups, lst->item, sizeof(Group), current_user, usr_in_grp);
+		res = shell_readFile(groups, lst->item, sizeof(Group), wallet);
 		if (res == sizeof(Group)) {
 			//we create a new list element to store the next group
-			lst->next =malloc(sizeof(ListElement));
-			lst->next->prev=lst;
-			lst=lst->next;
-			lst->item=malloc(sizeof(Group));
+			lst->next = malloc(sizeof(ListElement));
+			lst->next->prev = lst;
+			lst = lst->next;
+			lst->item = malloc(sizeof(Group));
 			lst->next = NULL;
-			grp_read=SUCCESS;
-		}else{
-			grp_read=FAILED;
+			grp_read = SUCCESS;
+		} else {
+			grp_read = FAILED;
 		}
 	}
 	//we clear the unused list item
 	free(lst->item);
-	if(lst->prev!=NULL){
+	if (lst->prev != NULL) {
 		lst = lst->prev;
 		free(lst->next);
 		lst->next = NULL;
-		grp_lst->last=lst;
+		grp_lst->last = lst;
 	} else {
 		//we don't have items in the file, so we deallocate our ListHead
 		free(lst);
 		free(grp_lst);
-		grp_lst=NULL;
+		grp_lst = NULL;
 	}
 	
 	if (res != FAILED) {
@@ -586,9 +565,10 @@ ListHead *read_groups(FileHandle *groups, Wallet *wallet){
 	}
 	return NULL;
 }
+
 //it saves the users list into the file
-int save_groups(FileHandle *groups, ListHead *data,Wallet *wallet) {
-	if(data==NULL){
+int save_groups(FileHandle *groups, ListHead *data, Wallet *wallet) {
+	if (data == NULL) {
 		return FAILED;
 	}
 	ListElement *lst = data->first;
@@ -598,19 +578,18 @@ int save_groups(FileHandle *groups, ListHead *data,Wallet *wallet) {
 	if (grp_lst != NULL) {
 		grp = grp_lst->item;
 	}
-	int usr_in_grp = usringrp(wallet->current_user, grp);
-	int current_user=wallet->current_user->uid;
+	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
-	res = seekFile(groups, 0, current_user, usr_in_grp);
+	res = shell_seekFile(groups, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
 	while (lst != NULL && res != FAILED) {
-		res = writeFile(groups, lst->item, sizeof(Group), current_user, usr_in_grp);
+		res = shell_writeFile(groups, lst->item, sizeof(Group), wallet);
 		if (res == sizeof(Group)) {
 			lst = lst->next;
-		}else{
-			res=FAILED;
+		} else {
+			res = FAILED;
 		}
 	}
 	if (res == FAILED || res == PERM_ERR) {
@@ -624,7 +603,7 @@ int save_groups(FileHandle *groups, ListHead *data,Wallet *wallet) {
 int usringrp(User *usr, char *grp_name, int gid, Wallet *wallet) {
 	
 	//we check if we have valid parameters
-	if ((strlen(grp_name) > NAME_LENGTH && gid == MISSING) || wallet == NULL || usr == NULL) {
+	if (((grp_name == NULL || strlen(grp_name) > NAME_LENGTH) && gid == MISSING) || wallet == NULL || usr == NULL) {
 		return FAILED;
 	}
 	//we find the group
@@ -636,14 +615,14 @@ int usringrp(User *usr, char *grp_name, int gid, Wallet *wallet) {
 	if (grp == NULL) {
 		return FAILED;
 	}
-	int i=0;
-	while(i<GROUP_SIZE){
-		if(usr->uid==grp->group_members[i]){
+	int i = 0;
+	while (i < GROUP_SIZE) {
+		if (usr->uid == grp->group_members[i]) {
 			return SUCCESS;
-		}else{
-			if(grp->group_members[i]==MISSING){
+		} else {
+			if (grp->group_members[i] == MISSING) {
 				return FAILED;
-			}else{
+			} else {
 				i++;
 			}
 		}
@@ -652,13 +631,14 @@ int usringrp(User *usr, char *grp_name, int gid, Wallet *wallet) {
 }
 
 // creates a group, returns the group gid on success
-int groupadd(char *name, Wallet *wallet){
+int groupadd(char *name, Wallet *wallet) {
 	//check if we have valid parameters
-	if(name==NULL || strlen(name)>NAME_LENGTH || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
+	if (name == NULL || strlen(name) > NAME_LENGTH || wallet == NULL || wallet->group_list == NULL ||
+	    wallet->group_file == NULL) {
 		return FAILED;
 	}
 	//we search for a group with the same name
-	if(grpsrc(wallet,name,MISSING)!=NULL){
+	if (grpsrc(wallet, name, MISSING) != NULL) {
 		return FAILED;
 	}
 	//we check if we have enough permissions
@@ -667,56 +647,57 @@ int groupadd(char *name, Wallet *wallet){
 	}
 	//we need to generate a new gid, which must be unique, to do so we get the last generated gid+1
 	//we get the last created group
-	ListElement* lst=wallet->group_list->last;
+	ListElement *lst = wallet->group_list->last;
 	//now we create a new group
-	Group* new_grp= (Group *) malloc(sizeof(Group));
-	new_grp->gid=wallet->ids->last_gid+1;
+	Group *new_grp = (Group *) malloc(sizeof(Group));
+	new_grp->gid = wallet->ids->last_gid + 1;
 	//we set the new group as empty
-	memset(new_grp->group_members,MISSING,GROUP_SIZE* sizeof(int));
-	memset(new_grp->group_name,'\0',NAME_LENGTH* sizeof(char));
-	memcpy(new_grp->group_name,name,strlen(name));
+	memset(new_grp->group_members, MISSING, GROUP_SIZE * sizeof(int));
+	memset(new_grp->group_name, '\0', NAME_LENGTH * sizeof(char));
+	memcpy(new_grp->group_name, name, strlen(name));
 	
 	//we create the group list element
-	ListElement *new_lst=(ListElement*) malloc(sizeof(ListElement));
-	new_lst->item=new_grp;
-	new_lst->next=NULL;
-	new_lst->prev=lst;
-	lst->next=new_lst;
+	ListElement *new_lst = (ListElement *) malloc(sizeof(ListElement));
+	new_lst->item = new_grp;
+	new_lst->next = NULL;
+	new_lst->prev = lst;
+	lst->next = new_lst;
 	
 	//we update the list head
-	wallet->group_list->last=new_lst;
+	wallet->group_list->last = new_lst;
 	
 	//now we save the group list
-	int res= save_groups(wallet->group_file,wallet->group_list,wallet);
-	if(res==FAILED || res==PERM_ERR){
+	int res = save_groups(wallet->group_file, wallet->group_list, wallet);
+	if (res == FAILED || res == PERM_ERR) {
 		//we revert the changes
-		lst->next=NULL;
+		lst->next = NULL;
 		free(new_grp);
 		free(new_lst);
-		wallet->user_list->last=lst;
+		wallet->user_list->last = lst;
 		return res;
 	}
 	
 	//we save our last used gid
 	wallet->ids->last_gid++;
-	res=save_ids(wallet->ids_file,wallet);
-	CHECK_ERR(res==FAILED || res==PERM_ERR, "can't update the ids file");
+	res = save_ids(wallet->ids_file, wallet);
+	CHECK_ERR(res == FAILED || res == PERM_ERR, "can't update the ids file");
 	return new_grp->gid;
 }
 
 //deletes a group
-int groupdel(char *name, Wallet *wallet){
+int groupdel(char *name, Wallet *wallet) {
 	// check if we have the right parameters
-	if(name==NULL || strlen(name) >NAME_LENGTH || wallet==NULL || wallet->group_list==NULL || wallet->group_file==NULL){
+	if (name == NULL || strlen(name) > NAME_LENGTH || wallet == NULL || wallet->group_list == NULL ||
+	    wallet->group_file == NULL) {
 		return FAILED;
 	}
 	//we check if we have the right permission
-	if(wallet->current_user->uid!=ROOT){
+	if (wallet->current_user->uid != ROOT) {
 		return PERM_ERR;
 	}
 	//we now search for the group to delete
-	ListElement* grp_lst=grpsrc(wallet,name,MISSING);
-	if(grp_lst==NULL){
+	ListElement *grp_lst = grpsrc(wallet, name, MISSING);
+	if (grp_lst == NULL) {
 		return FAILED;
 	}
 	//now we delete the user
@@ -724,20 +705,20 @@ int groupdel(char *name, Wallet *wallet){
 	if (grp_lst->prev == NULL) {
 		//we delete the first entry in the list
 		next = grp_lst->next;
-		if(next!=NULL) {
+		if (next != NULL) {
 			next->prev = NULL;
 		}
 		//we update our list head
-		wallet->group_list->first=next;
+		wallet->group_list->first = next;
 	} else {
 		if (grp_lst->next == NULL) {
 			//we delete the last entry in the list
 			prev = grp_lst->prev;
-			if(prev!=NULL) {
+			if (prev != NULL) {
 				prev->next = NULL;
 			}
 			//we update the list head
-			wallet->group_list->last=prev;
+			wallet->group_list->last = prev;
 		} else {
 			//we delete an entry in between the list
 			prev = grp_lst->prev;
@@ -751,32 +732,34 @@ int groupdel(char *name, Wallet *wallet){
 	free(grp_lst);
 	//we save the changes in the file
 	int res = save_groups(wallet->group_file, wallet->group_list, wallet);
-	if(res==FAILED || res==PERM_ERR){
+	if (res == FAILED || res == PERM_ERR) {
 		//we rollback the changes by reloading the list
 		delete_list(wallet->group_list);
-		wallet->group_list=read_groups(wallet->group_file,wallet);
-		CHECK_ERR(wallet->group_list==NULL, "users subsystem compromised!")
+		wallet->group_list = read_groups(wallet->group_file, wallet);
+		CHECK_ERR(wallet->group_list == NULL, "users subsystem compromised!")
 		return res;
 	}
 	return res;
 }
+
 //adds or deletes a user from a group
-int gpasswd(char *group, char *user, Wallet *wallet, int type){
+int gpasswd(char *group, char *user, Wallet *wallet, int type) {
 	// we check if we are given correct parameters
-	if(group==NULL || strlen(group)>NAME_LENGTH || user==NULL || strlen(user) > NAME_LENGTH || wallet==NULL || (type!=ADD && type!=REMOVE)){
+	if (group == NULL || strlen(group) > NAME_LENGTH || user == NULL || strlen(user) > NAME_LENGTH || wallet == NULL ||
+	    (type != ADD && type != REMOVE)) {
 		return FAILED;
 	}
 	//check if we have the required permissions
-	if(wallet->current_user->uid!=ROOT){
-		return  PERM_ERR;
+	if (wallet->current_user->uid != ROOT) {
+		return PERM_ERR;
 	}
 	//we search for the group in which perform the operation
-	ListElement* grp_lst=grpsrc(wallet,group,MISSING);
-	if(grp_lst==NULL){
+	ListElement *grp_lst = grpsrc(wallet, group, MISSING);
+	if (grp_lst == NULL) {
 		return FAILED;
 	}
 	Group *grp = grp_lst->item;
-	if(grp==NULL){
+	if (grp == NULL) {
 		return FAILED;
 	}
 	//we search for the user in which perform the operation
@@ -784,53 +767,53 @@ int gpasswd(char *group, char *user, Wallet *wallet, int type){
 	if (usr_lst == NULL) {
 		return FAILED;
 	}
-	User* usr=usr_lst->item;
-	if(usr==NULL){
+	User *usr = usr_lst->item;
+	if (usr == NULL) {
 		return FAILED;
 	}
 	//we perform the operation
-	if(type==ADD){
+	if (type == ADD) {
 		//we add a user into a given group
 		
 		//we search for a empty slot in the group while making sure the user isn't already in the group
 		int i;
-		for(i=0;grp->group_members[i]!=MISSING && i<GROUP_SIZE;i++){
+		for (i = 0; grp->group_members[i] != MISSING && i < GROUP_SIZE; i++) {
 			//we check if the user is already in the group
-			if(grp->group_members[i]==usr->uid){
+			if (grp->group_members[i] == usr->uid) {
 				return FAILED;
 			}
 		}
 		//we check if we can fit another user in the group
-		if(grp->group_members[i]!=MISSING){
+		if (grp->group_members[i] != MISSING) {
 			return FAILED;
 		}
 		//we insert the user in the group
-		grp->group_members[i]=usr->uid;
+		grp->group_members[i] = usr->uid;
 	}
-	if(type==REMOVE){
+	if (type == REMOVE) {
 		//we remove a user from the given group
 		//we search fo the user in the group
-		int i,hole=MISSING;
+		int i, hole = MISSING;
 		for (i = 0; grp->group_members[i] != MISSING && i < GROUP_SIZE; i++) {
 			if (grp->group_members[i] == usr->uid) {
 				//if we have found the user we mark its location to be filled with the last user in the list
-				hole=i;
+				hole = i;
 			}
 		}
 		//we check if the user has been found
-		if(hole==MISSING){
+		if (hole == MISSING) {
 			return FAILED;
 		}
 		//if the user to be removed isn't the last one in the list
-		if(hole<i){
-			grp->group_members[hole]=grp->group_members[i];
-			grp->group_members[i]=MISSING;
-		}else{
-			grp->group_members[hole]=MISSING;
+		if (hole < i) {
+			grp->group_members[hole] = grp->group_members[i];
+			grp->group_members[i] = MISSING;
+		} else {
+			grp->group_members[hole] = MISSING;
 		}
 	}
 	//now we save the changes into the file
-	int res=save_groups(wallet->group_file,wallet->group_list,wallet);
+	int res = save_groups(wallet->group_file, wallet->group_list, wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		//we rollback the changes by reloading the list
 		delete_list(wallet->group_list);
@@ -841,19 +824,19 @@ int gpasswd(char *group, char *user, Wallet *wallet, int type){
 }
 
 //given a wallet deallocate it along with its content
-void destroy_wallet(Wallet *wallet){
-	if(wallet!=NULL) {
+void destroy_wallet(Wallet *wallet) {
+	if (wallet != NULL) {
 		//we close the handle to /etc/ids
 		if (wallet->ids_file != NULL) {
-			closeFile(wallet->ids_file);
+			shell_closeFile(wallet->ids_file);
 		}
 		//we close the handle to /etc/group
 		if (wallet->group_file != NULL) {
-			closeFile(wallet->group_file);
+			shell_closeFile(wallet->group_file);
 		}
 		//we close the handle to /etc/passwd
 		if (wallet->user_file != NULL) {
-			closeFile(wallet->user_file);
+			shell_closeFile(wallet->user_file);
 		}
 		//we delete the group list
 		if (wallet->group_list != NULL) {
@@ -864,7 +847,7 @@ void destroy_wallet(Wallet *wallet){
 			delete_list(wallet->user_list);
 		}
 		//we delete the last used ids
-		if(wallet->ids!=NULL){
+		if (wallet->ids != NULL) {
 			free(wallet->ids);
 		}
 		//we delete the wallet
@@ -874,38 +857,38 @@ void destroy_wallet(Wallet *wallet){
 
 //load the user subsytem and if there are no users in the system creates root user
 //the directory handle given must be the root of the disk
-Wallet *initialize_wallet(DirectoryHandle *dh){
+Wallet *initialize_wallet(DirectoryHandle *dh) {
 	int res;
 	//create the root user
-	User* root=(User*)malloc(sizeof(User));
-	memset(root->account,'\0',NAME_LENGTH*sizeof(char));
-	strcpy(root->account,"root\0");
-	root->uid=ROOT;
-	root->gid=ROOT;
+	User *root = (User *) malloc(sizeof(User));
+	memset(root->account, '\0', NAME_LENGTH * sizeof(char));
+	strcpy(root->account, "root\0");
+	root->uid = ROOT;
+	root->gid = ROOT;
 	
 	//initialize the wallet only with the temporary root user
-	Wallet* wallet=(Wallet*)malloc(sizeof(Wallet));
-	wallet->current_user=root;
-	wallet->group_file=NULL;
-	wallet->group_list=NULL;
-	wallet->user_file=NULL;
-	wallet->user_list=NULL;
+	Wallet *wallet = (Wallet *) malloc(sizeof(Wallet));
+	wallet->current_user = root;
+	wallet->group_file = NULL;
+	wallet->group_list = NULL;
+	wallet->user_file = NULL;
+	wallet->user_list = NULL;
 	// try to load the users from the file
-	wallet->user_file=load_users(dh,wallet);
-	if(wallet->user_file==NULL){
+	wallet->user_file = load_users(dh, wallet);
+	if (wallet->user_file == NULL) {
 		destroy_wallet(wallet);
 		return NULL;
 	}
-	wallet->user_list=read_users(wallet->user_file,wallet);
+	wallet->user_list = read_users(wallet->user_file, wallet);
 	//we check if the file was empty
-	if(wallet->user_list==NULL){
+	if (wallet->user_list == NULL) {
 		//if the file was empty
-		wallet->user_list=malloc(sizeof(ListHead));
-		wallet->user_list->first=malloc(sizeof(User));
-		wallet->user_list->first->item=root;
-		wallet->user_list->first->next=NULL;
-		wallet->user_list->first->prev=NULL;
-		wallet->user_list->last=wallet->user_list->first;
+		wallet->user_list = malloc(sizeof(ListHead));
+		wallet->user_list->first = malloc(sizeof(User));
+		wallet->user_list->first->item = root;
+		wallet->user_list->first->next = NULL;
+		wallet->user_list->first->prev = NULL;
+		wallet->user_list->last = wallet->user_list->first;
 		
 		//we save our user list on file
 		res = save_users(wallet->user_file, wallet->user_list, wallet);
@@ -913,65 +896,65 @@ Wallet *initialize_wallet(DirectoryHandle *dh){
 			destroy_wallet(wallet);
 			return NULL;
 		}
-	}else{
+	} else {
 		//we load the root user on file
 		free(wallet->current_user);
-		ListElement *tmp_lst= usrsrc(wallet, NULL, ROOT);
-		User* tmp;
-		if(tmp_lst!=NULL){
-			tmp=tmp_lst->item;
-			wallet->current_user =tmp;
+		ListElement *tmp_lst = usrsrc(wallet, NULL, ROOT);
+		User *tmp;
+		if (tmp_lst != NULL) {
+			tmp = tmp_lst->item;
+			wallet->current_user = tmp;
 		}
 	}
 	//now we load the groups from the group file
-	wallet->group_file=load_groups(dh,wallet);
-	if(wallet->group_file==NULL){
+	wallet->group_file = load_groups(dh, wallet);
+	if (wallet->group_file == NULL) {
 		destroy_wallet(wallet);
 		return NULL;
 	}
 	//we load the group list
-	wallet->group_list=read_groups(wallet->group_file,wallet);
-	if(wallet->group_list==NULL){
+	wallet->group_list = read_groups(wallet->group_file, wallet);
+	if (wallet->group_list == NULL) {
 		//create the root group if the group file is empty
 		Group *root_grp = (Group *) malloc(sizeof(Group));
 		memset(root_grp->group_name, '\0', NAME_LENGTH * sizeof(char));
 		strcpy(root_grp->group_name, "root");
 		root_grp->gid = ROOT;
-		memset(root_grp->group_members, MISSING, GROUP_SIZE* sizeof(int));
-		root_grp->group_members[0]=ROOT;
+		memset(root_grp->group_members, MISSING, GROUP_SIZE * sizeof(int));
+		root_grp->group_members[0] = ROOT;
 		
-		wallet->group_list=(ListHead*)malloc(sizeof(ListHead));
-		wallet->group_list->first=(ListElement*) malloc(sizeof(ListElement));
-		wallet->group_list->first->item=root_grp;
-		wallet->group_list->first->next=NULL;
-		wallet->group_list->first->prev=NULL;
-		wallet->group_list->last=wallet->group_list->first;
+		wallet->group_list = (ListHead *) malloc(sizeof(ListHead));
+		wallet->group_list->first = (ListElement *) malloc(sizeof(ListElement));
+		wallet->group_list->first->item = root_grp;
+		wallet->group_list->first->next = NULL;
+		wallet->group_list->first->prev = NULL;
+		wallet->group_list->last = wallet->group_list->first;
 		//we save the group list  on file
-		res=save_groups(wallet->group_file,wallet->group_list,wallet);
-		if(res==FAILED || res==PERM_ERR){
+		res = save_groups(wallet->group_file, wallet->group_list, wallet);
+		if (res == FAILED || res == PERM_ERR) {
 			destroy_wallet(wallet);
 			return NULL;
 		}
 	}
-
+	
 	//we load the last used ids from the ids file
-	wallet->ids_file=load_ids(dh,wallet);
-	if(wallet->ids_file==NULL){
+	wallet->ids_file = load_ids(dh, wallet);
+	if (wallet->ids_file == NULL) {
 		destroy_wallet(wallet);
 		return NULL;
 	}
 	//now we try to read from the ids file
-	wallet->ids=read_ids(wallet->ids_file,wallet);
-	if(wallet->ids==NULL){
+	wallet->ids = read_ids(wallet->ids_file, wallet);
+	if (wallet->ids == NULL) {
 		//we initialize and save the last used uid and gid
-		wallet->ids=malloc(sizeof(Ids));
-		wallet->ids->last_uid=ROOT;
-		wallet->ids->last_gid=ROOT;
-		res=save_ids(wallet->ids_file,wallet);
-		if(res==FAILED || res==PERM_ERR){
+		wallet->ids = malloc(sizeof(Ids));
+		wallet->ids->last_uid = ROOT;
+		wallet->ids->last_gid = ROOT;
+		res = save_ids(wallet->ids_file, wallet);
+		if (res == FAILED || res == PERM_ERR) {
 			destroy_wallet(wallet);
 			return NULL;
 		}
 	}
-	return  wallet;
+	return wallet;
 }

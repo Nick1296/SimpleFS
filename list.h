@@ -1,5 +1,7 @@
 #pragma once
+
 #include "common.h"
+
 // a list implementation which is used by the users and group framework
 typedef struct _ListElement {
 	void *item; //the item in the list

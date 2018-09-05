@@ -14,13 +14,13 @@ it can be called by the root user or the owner of the file
 if one permission is FAILED then the function leaves that permission unmodified
 this function can takes a DirectoryHandle or a FileHandle and modifies the permissions,
 you can't modify permission for a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_chmod(DirectoryHandle *d, FileHandle *f, int user, int group, int others, int current_user);
+int SimpleFS_chmod(FileHandle *f, int user, int group, int others, int current_user);
 
 /*change a file/directory owner
 it can be called by the root user or by the owner of the file
 this function can takes a DirectoryHandle or a FileHandle
 you can't modify ownership of a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_chown(DirectoryHandle *d, FileHandle *f, int new_owner, int new_owner_primary_group, int current_user);
+int SimpleFS_chown(FileHandle *f, int new_owner, int new_owner_primary_group, int current_user);
 
 // these functions will only verify that the user has enough permission before calling the correspondent SimpleFS function
 

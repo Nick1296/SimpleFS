@@ -6,27 +6,39 @@ it can be called by the root user or the owner of the file
 if one permission is FAILED then the function leaves that permission unmodified
 this function can takes a DirectoryHandle or a FileHandle and modifies the permissions,
 you can't modify permission for a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_shell_chmod(DirectoryHandle *d, FileHandle *f, int user, int group, int others, Wallet *wallet) {
-	if (d == NULL || f == NULL || wallet == NULL) {
+int shell_chmod(DirectoryHandle *d, char *name, int user, int group, int others, Wallet *wallet) {
+	if (d == NULL || name == NULL || strlen(name) > FILENAME_MAX_LENGTH || wallet == NULL) {
 		return FAILED;
 	}
-	return SimpleFS_chmod(d, f, user, group, others, wallet->current_user->uid);
+	int res = FAILED;
+	FileHandle *fh = shell_openFile(d, name, wallet);
+	if (fh != NULL) {
+		res = SimpleFS_chmod(fh, user, group, others, wallet->current_user->uid);
+	}
+	return res;
+	
 }
 
 /*change a file/directory owner
 it can be called by the root user or by the owner of the file
 this function can takes a DirectoryHandle or a FileHandle
 you can't modify ownership of a file and a directory simultaneously, so one of them MUST be NULL*/
-int SimpleFS_shell_chown(DirectoryHandle *d, FileHandle *f, char *new_owner_name, Wallet *wallet) {
-	if (d == NULL || f == NULL || new_owner_name == NULL || strlen(new_owner_name) > NAME_LENGTH || wallet == NULL) {
+int shell_chown(DirectoryHandle *d, char *name, char *new_owner_name, Wallet *wallet) {
+	if (d == NULL || name == NULL || strlen(name) < FILENAME_MAX_LENGTH || new_owner_name == NULL ||
+	    strlen(new_owner_name) > NAME_LENGTH || wallet == NULL) {
 		return FAILED;
 	}
 	ListElement *new_owner_lst = usrsrc(wallet, new_owner_name, MISSING);
 	if (new_owner_lst == NULL || new_owner_lst->item == NULL) {
 		return FAILED;
 	}
-	User *new_owner = new_owner_lst->item;
-	return SimpleFS_chown(d, f, new_owner->uid, new_owner->gid, wallet->current_user->gid);
+	int res = FAILED;
+	FileHandle *fh = shell_openFile(d, name, wallet);
+	if (fh != NULL) {
+		User *new_owner = new_owner_lst->item;
+		res = SimpleFS_chown(fh, new_owner->uid, new_owner->gid, wallet->current_user->gid);
+	}
+	return res;
 }
 
 // initializes a file system on an already made disk
