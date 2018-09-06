@@ -69,4 +69,5 @@ testcp
 .DS_Store
 
 #CMAKE
-cmake-build*/
+cmake
+cmake*/

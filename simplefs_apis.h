@@ -11,7 +11,7 @@
 
 /* setting the permissions on a file/directory according to the values of each set
 it can be called by the root user or the owner of the file
-if one permission is FAILED then the function leaves that permission unmodified
+if one permission is MISSING then the function leaves that permission unmodified
 this function can takes a DirectoryHandle or a FileHandle and modifies the permissions,
 you can't modify permission for a file and a directory simultaneously, so one of them MUST be NULL*/
 int SimpleFS_chmod(FileHandle *f, int user, int group, int others, int current_user);

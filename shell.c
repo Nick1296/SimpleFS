@@ -200,7 +200,7 @@ int do_cat(DirectoryHandle *dh, char *argv[MAX_NUM_COMMAND], int i_init, Wallet 
 						else letti += shell_readFile(fh, buffer, daLeggere - letti, wallet);
 						printf("%s", buffer);
 					}
-					printf("letti: %d\n", letti);
+					printf("\nletti: %d\n", letti);
 					// Libero la memoria occupata
 					free(buffer);
 				}
@@ -570,7 +570,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "userdel") == 0) {
 			
-			res = userdel(argv[i + 1], wallet);
+			res = userdel(argv[i + 1], dh, wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di userdel\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
@@ -620,47 +620,79 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 }
 
 int shell_login(Wallet *wallet, DirectoryHandle *dh) {
-	char *ret;
+
 	int res;
 	//we check if we have valid data
 	if (wallet == NULL) {
 		return FAILED;
 	}
 	
-	char *user_buf = (char *) malloc(sizeof(char) * NAME_LENGTH);
+	char *user_buf = NULL;
 	//we check if we must create a new user
 	if (wallet->user_list->first->next == NULL) {
 		//the first user is always root, so in this case we need to create the a user
-		printf("Non è presente nessun utene, crea un utente\n");
-		printf("username:\n");
-		ret = fgets(user_buf, NAME_LENGTH, stdin);
-		if (ret == NULL) {
-			return FAILED;
+		printf("Non è presente nessun utente, crea un utente\n");
+		printf("username:");
+		res = 0;
+		while (res == 0 || res > NAME_LENGTH) {
+			printf("username:");
+			res = scanf("%ms", &user_buf);
+			if (res <= 0 && errno != 0) {
+				return FAILED;
+			}
+			if (res > NAME_LENGTH) {
+				printf("il nome utente e' troppo lungo,riprova\n");
+			}
 		}
 		res = useradd(user_buf, dh, wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			return res;
+		}
+		//we log with the added user
+		res = do_su(user_buf, wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			return res;
+		}
 	} else {
 		printf("\t\tLogin\n");
-		printf("username:");
-		ret = fgets(user_buf, NAME_LENGTH, stdin);
-		if (ret == NULL) {
-			return FAILED;
+		res = 0;
+		while (res == FAILED || res == 0 || res > NAME_LENGTH) {
+			printf("username:");
+			res = scanf("%ms", &user_buf);
+			if (res <= 0 && errno != 0) {
+				return FAILED;
+			}
+			if (res > NAME_LENGTH) {
+				printf("il nome utente e' troppo lungo,riprova\n");
+			} else {
+				//we log with the chosen user
+				res = do_su(user_buf, wallet);
+				if (res == PERM_ERR) {
+					return res;
+				}
+				if (res == FAILED) {
+					printf("l'utente %s non esiste,riprova\n", user_buf);
+				}
+			}
+			
 		}
-		res = do_su(user_buf, wallet);
 	}
+	res = SUCCESS;
 	//we move into the user home directory
 	//we go back to the root directory
 	while (dh->directory != NULL && res != FAILED && res != PERM_ERR) {
 		res = shell_changeDir(dh, "..", wallet);
 	}
-	if (res == FAILED || res == PERM_ERR) {
-		return res;
+	//we go to the user home directory
+	if (wallet->current_user->uid != ROOT) {
+		res = shell_changeDir(dh, "home", wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			return res;
+		}
+		res = shell_changeDir(dh, user_buf, wallet);
+	} else {
+		res = shell_changeDir(dh, "root", wallet);
 	}
-	//we go into the user home directory
-	res = shell_changeDir(dh, "home", wallet);
-	if (res == FAILED || res == PERM_ERR) {
-		return res;
-	}
-	res = shell_changeDir(dh, user_buf, wallet);
 	free(user_buf);
 	return res;
 }
@@ -698,7 +730,7 @@ int main(int arg, char **args) {
 	printf("\n\tI comandi di questa shell inziano per '/', esempio /ls, /cd, /mkdir, ecc.\n\n");
 	
 	while (control) {
-		printf("[progettoSO_shell:%s]>", dh->dcb->fcb.name);
+		printf("[%s@SimpleFS_shell:%s]>", wallet->current_user->account, dh->dcb->fcb.name);
 		
 		//lettura dei comandi da tastiera
 		ret = fgets(command, MAX_COMMAND_SIZE, stdin);

@@ -233,13 +233,13 @@ int SimpleFS_chmod(FileHandle *f, int user, int group, int others, int current_u
 	//we check if we are operating on a file o directory
 	if (f != NULL) {
 		//now we change permissions only for the specified fields
-		if (user != FAILED) {
+		if (user != MISSING) {
 			f->fcb->fcb.permissions.user = (uint8_t) user;
 		}
-		if (group != FAILED) {
+		if (group != MISSING) {
 			f->fcb->fcb.permissions.group = (uint8_t) group;
 		}
-		if (others != FAILED) {
+		if (others != MISSING) {
 			f->fcb->fcb.permissions.others = (uint8_t) others;
 		}
 		// we write the file with the new permissions on disk

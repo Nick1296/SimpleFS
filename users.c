@@ -274,22 +274,23 @@ int useradd(char *username, DirectoryHandle *dh, Wallet *wallet) {
 		return res;
 	}
 	//now we need to create the user folder
-	//we get a new directory handle
-	DirectoryHandle *dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
+	//we get a new directory handle to /
+	DirectoryHandle *dh2 = NULL;
+	//this variabile controla if we must deallocate the handle at the end of the function
+	int to_be_freed = 0;
+	if (dh->directory == NULL) {
+		//if we are in the root directory we use this handle
+		dh2 = dh;
+	} else {
+		//or we get tha handle to the root directory
+		dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
+		to_be_freed = 1;
+	}
 	//we try to move into the directory "home"
 	res = shell_changeDir(dh2, "home", wallet);
-	if (res == FAILED) {
-		//if the directory does not exist we create it
-		res = shell_mkDir(dh2, "home", wallet);
-		if (res == FAILED || res == PERM_ERR) {
-			userdel(username, dh, wallet);
-			return res;
-		}
-		res = shell_changeDir(dh2, "home", wallet);
-		if (res == FAILED || res == PERM_ERR) {
-			userdel(username, dh, wallet);
-			return res;
-		}
+	if (res == FAILED || res == PERM_ERR) {
+		userdel(username, dh, wallet);
+		return res;
 	}
 	//we create the user directory
 	res = shell_mkDir(dh2, username, wallet);
@@ -305,10 +306,12 @@ int useradd(char *username, DirectoryHandle *dh, Wallet *wallet) {
 	}
 	//we deallocate the obtained handle
 	//TODO: check these free
-	free(dh2->current_block);
-	free(dh2->dcb);
-	free(dh2->directory);
-	free(dh2);
+	if (to_be_freed) {
+		free(dh2->current_block);
+		free(dh2->dcb);
+		free(dh2->directory);
+		free(dh2);
+	}
 	return res;
 }
 
@@ -383,12 +386,17 @@ int userdel(char *username, DirectoryHandle *dh, Wallet *wallet) {
 			CHECK_ERR(wallet->user_list == NULL, "users subsystem compromised!")
 		}
 		//now we need to remove the user folder
-		//we get a new directory handle
-		DirectoryHandle *dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
-		//we try to move into the directory "home"
-		res = shell_changeDir(dh2, "home", wallet);
-		if (res == PERM_ERR) {
-			return res;
+		//we get a new directory handle to /
+		DirectoryHandle *dh2 = NULL;
+		//this variabile controla if we must deallocate the handle at the end of the function
+		int to_be_freed = 0;
+		if (dh->directory == NULL) {
+			//if we are in the root directory we use this handle
+			dh2 = dh;
+		} else {
+			//or we get the handle to the root directory
+			dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
+			to_be_freed = 1;
 		}
 		//we remove the user home directory
 		res = shell_removeFile(dh2, username, wallet);
@@ -397,10 +405,12 @@ int userdel(char *username, DirectoryHandle *dh, Wallet *wallet) {
 		}
 		//we deallocate the obtained handle
 		//TODO: check these free
-		free(dh2->current_block);
-		free(dh2->dcb);
-		free(dh2->directory);
-		free(dh2);
+		if (to_be_freed) {
+			free(dh2->current_block);
+			free(dh2->dcb);
+			free(dh2->directory);
+			free(dh2);
+		}
 		return res;
 	} else {
 		//otherwise we return failed
@@ -496,12 +506,6 @@ ListElement *grpsrc(Wallet *wallet, char *name, int gid) {
 // returns NULL on error
 FileHandle *load_groups(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
-	int current_user = wallet->current_user->uid;
-	ListElement *grp_lst = grpsrc(wallet, NULL, dh->dcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
 	//we check that the given directory handle is the one of the root directory
 	while (dh->directory != NULL) {
 		res = shell_changeDir(dh, "..", wallet);
@@ -531,12 +535,6 @@ FileHandle *load_groups(DirectoryHandle *dh, Wallet *wallet) {
 //given a file handle creates a group list
 ListHead *read_groups(FileHandle *groups, Wallet *wallet) {
 	int res;
-	ListElement *file_grp_lst = grpsrc(wallet, NULL, groups->fcb->fcb.permissions.group_uid);
-	Group *file_grp = NULL;
-	if (file_grp_lst != NULL) {
-		file_grp = file_grp_lst->item;
-	}
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
 	res = shell_seekFile(groups, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -598,12 +596,6 @@ int save_groups(FileHandle *groups, ListHead *data, Wallet *wallet) {
 	}
 	ListElement *lst = data->first;
 	int res;
-	ListElement *grp_lst = grpsrc(wallet, NULL, groups->fcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
 	res = shell_seekFile(groups, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -982,9 +974,49 @@ Wallet *initialize_wallet(DirectoryHandle *dh) {
 		}
 	}
 	res = SUCCESS;
-	//we try to go back to the root directory
+	//we go back to the root directory
 	while (dh->directory != NULL && res != FAILED && res != PERM_ERR) {
 		res = shell_changeDir(dh, "..", wallet);
+	}
+	//we check if the root folder is present
+	res = shell_changeDir(dh, "root", wallet);
+	if (res == PERM_ERR) {
+		destroy_wallet(wallet);
+		return NULL;
+	}
+	if (res == FAILED) {
+		//we create the root folder
+		res = shell_mkDir(dh, "root", wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			destroy_wallet(wallet);
+			return NULL;
+		}
+	}
+	//we go back to /
+	res = shell_changeDir(dh, "..", wallet);
+	if (res == PERM_ERR || res == FAILED) {
+		destroy_wallet(wallet);
+		return NULL;
+	}
+	//we repeat the operation for the home folder
+	
+	res = shell_changeDir(dh, "home", wallet);
+	if (res == PERM_ERR) {
+		destroy_wallet(wallet);
+		return NULL;
+	}
+	if (res == FAILED) {
+		res = shell_mkDir(dh, "home", wallet);
+		if (res == PERM_ERR || res == FAILED) {
+			destroy_wallet(wallet);
+			return NULL;
+		}
+	}
+	//we go back to /
+	res = shell_changeDir(dh, "..", wallet);
+	if (res == PERM_ERR || res == FAILED) {
+		destroy_wallet(wallet);
+		return NULL;
 	}
 	return wallet;
 }

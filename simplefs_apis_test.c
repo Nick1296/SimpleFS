@@ -22,10 +22,10 @@ int main(void) {
 	fs->disk = disk;
 	
 	unsigned root = ROOT;
-	format(fs, root);
-	res = load(fs->disk, fs->filename);
+	formatDisk(fs, root);
+	res = loadDisk(fs->disk, fs->filename);
 	CHECK_ERR(res == FAILED, "can't load the fs");
-	DirectoryHandle *root_dir = init(fs, disk, root);
+	DirectoryHandle *root_dir = init(fs, disk, root, root);
 	disk_info(disk);
 	
 	// we have two users
@@ -43,7 +43,7 @@ int main(void) {
 	
 	//we create a directory for usr1
 	printf("root creates usr1 home directory\n");
-	res = mkDir(root_dir, "usr1", root, rootgrp);
+	res = mkDir(root_dir, "usr1", root, root, rootgrp);
 	printf("result %d\n", res);
 	CHECK_ERR(res == FAILED, "FS error on root's create usr1 directory")
 	CHECK_ERR(res == PERM_ERR, "root perm err on creating usr1 directory")
@@ -53,7 +53,7 @@ int main(void) {
 	CHECK_ERR(res == FAILED, "FS error on root's cd into usr1 directory")
 	CHECK_ERR(res == PERM_ERR, "root perm err on cd into usr1 directory")
 	printf("root chowns usr1 dir to usr1\n");
-	res = SimpleFS_chown(root_dir, NULL, usr1, root);
+	res = SimpleFS_chown((FileHandle *) root_dir, usr1, usr1, root);
 	printf("result %d\n", res);
 	//we copy the handle of usr1 home directory
 	usr1_dir = malloc(sizeof(DirectoryHandle));
@@ -74,7 +74,7 @@ int main(void) {
 	CHECK_ERR(res == PERM_ERR, "root perm err on cd into .. directory")
 	
 	printf("root creates usr2 home directory\n");
-	res = mkDir(root_dir, "usr2", root, rootgrp);
+	res = mkDir(root_dir, "usr2", root, root, rootgrp);
 	printf("result %d\n", res);
 	CHECK_ERR(res == FAILED, "FS error on root's create usr2 directory")
 	CHECK_ERR(res == PERM_ERR, "root perm err on creating usr2 directory")
@@ -84,7 +84,7 @@ int main(void) {
 	CHECK_ERR(res == FAILED, "FS error on root's cd into usr2 directory")
 	CHECK_ERR(res == PERM_ERR, "root perm err on cd into usr2 directory")
 	printf("root chowns usr2 dir to usr2\n");
-	res = SimpleFS_chown(root_dir, NULL, usr2, root);
+	res = SimpleFS_chown((FileHandle *) root_dir, usr2, usr2, root);
 	printf("result %d\n", res);
 	
 	//we copy the handle of usr2 home directory
@@ -107,7 +107,7 @@ int main(void) {
 	
 	//now usr1 creates a file
 	printf("usr1 creates a file\n");
-	FileHandle *usr1_f1 = createFile(usr1_dir, "file1", usr1, usr1grp);
+	FileHandle *usr1_f1 = createFile(usr1_dir, "file1", usr1, usr1, usr1grp);
 	CHECK_ERR(usr1_f1 == NULL, "usr1 can't create a file into it's directory")
 	
 	//usr1 writes something in its file
@@ -137,7 +137,7 @@ int main(void) {
 	
 	//now usr2 tries to create a file in the usr1 directory
 	printf("usr2 creates a file in usr1 directory\n");
-	FileHandle *usr2_f2 = createFile(usr1_dir, "file2", usr2, usr2grp);
+	FileHandle *usr2_f2 = createFile(usr1_dir, "file2", usr2, usr2, usr2grp);
 	CHECK_ERR(usr2_f2 != NULL, "usr2 can create a file into it's directory")
 	
 	//now usr2 tries to open the file1 of usr1
@@ -160,7 +160,7 @@ int main(void) {
 	
 	printf("root grants all permission to everyone on usr1 file\n");
 	
-	res = SimpleFS_chmod(NULL, usr2_f3, READ | WRITE, READ | WRITE, READ | WRITE, root);
+	res = SimpleFS_chmod(usr2_f3, READ | WRITE, READ | WRITE, READ | WRITE, root);
 	printf("result %d\n", res);
 	
 	//usr2 seeks to the begin of the file
@@ -200,7 +200,7 @@ int main(void) {
 	
 	//now usr2 creates a file
 	printf("usr2 creates a file int's directory\n");
-	FileHandle *usr2_f1 = createFile(usr2_dir, "file1", usr2, usr2grp);
+	FileHandle *usr2_f1 = createFile(usr2_dir, "file1", usr2, usr2, usr2grp);
 	CHECK_ERR(usr2_f1 == NULL, "usr2 can't create a file into it's directory")
 	
 	//usr2 closes the file
@@ -208,7 +208,7 @@ int main(void) {
 	
 	//now usr1 tries to create a file in the usr2 directory
 	printf("usr1 tries to create a file in usr2 directory\n");
-	FileHandle *usr1_f2 = createFile(usr2_dir, "file2", usr1, usr1grp);
+	FileHandle *usr1_f2 = createFile(usr2_dir, "file2", usr1, usr1, usr1grp);
 	CHECK_ERR(usr1_f2 != NULL, "usr1 can create a file into usr2 directory")
 	
 	//now usr1 tries to open the file1 of usr2
@@ -232,7 +232,7 @@ int main(void) {
 	CHECK_ERR(res != PERM_ERR, "usr1 can delete usr2 files")
 	
 	printf("root gives all permission to every one on usr2 file\n");
-	SimpleFS_chmod(NULL, usr1_f3, READ | WRITE, READ | WRITE, READ | WRITE, root);
+	SimpleFS_chmod(usr1_f3, READ | WRITE, READ | WRITE, READ | WRITE, root);
 	
 	//usr1 tries to write something in this file
 	printf("usr1 tries to write something into usr2 after having the permission granted");
@@ -256,11 +256,11 @@ int main(void) {
 	CHECK_ERR(strcmp(text, t_res) != 0, "write/read error 3")
 	
 	printf("root sets default perms on usr2 file\n");
-	res = SimpleFS_chmod(NULL, usr1_f3, READ | WRITE, READ, READ, root);
+	res = SimpleFS_chmod(usr1_f3, READ | WRITE, READ, READ, root);
 	printf("result %d\n", res);
 	
 	printf("usr2 gives ownership to usr1\n");
-	res = SimpleFS_chown(NULL, usr1_f3, usr1, usr2);
+	res = SimpleFS_chown(usr1_f3, usr1, usr1, usr2);
 	printf("result %d\n", res);
 	
 	printf("usr2 tries to write in the new owned file\n");
@@ -272,25 +272,25 @@ int main(void) {
 	
 	//now usr1 creates a directory in its directory
 	printf("usr1 creates a folder in it's directory\n");
-	res = mkDir(usr1_dir, "dir_test", usr1, usr1grp);
+	res = mkDir(usr1_dir, "dir_test", usr1, usr1, usr1grp);
 	printf("result: %d\n", res);
 	CHECK_ERR(res == FAILED, "FS error in creating a directory")
 	CHECK_ERR(res == PERM_ERR, "usr1 can't create a directory in it's directory")
 	
 	//now usr1 creates a directory in usr2 directory
 	printf("usr1 tries to create a folder in usr2 directory\n");
-	res = mkDir(usr2_dir, "dir_test2", usr1, usr2grp);
+	res = mkDir(usr2_dir, "dir_test2", usr1, usr1, usr2grp);
 	printf("result: %d\n", res);
 	CHECK_ERR(res == FAILED, "FS error in creating a directory")
 	CHECK_ERR(res != PERM_ERR, "usr1 can create a directory in usr2 directory")
 	
 	printf("root gives permission to group to modify usr2 directory\n");
-	res = SimpleFS_chmod(usr2_dir, NULL, FAILED, READ | WRITE, FAILED, root);
+	res = SimpleFS_chmod((FileHandle *) usr2_dir, MISSING, READ | WRITE, MISSING, root);
 	printf("result %d\n", res);
 	
 	//now usr1 creates a directory in usr2 directory
 	printf("usr1 tries to create a folder in usr2 directory after having given permission\n");
-	res = mkDir(usr1_dir, "dir_test2", usr1, usr2grp);
+	res = mkDir(usr1_dir, "dir_test2", usr1, usr1, usr2grp);
 	printf("result: %d\n", res);
 	CHECK_ERR(res == FAILED, "FS error in creating a directory")
 	CHECK_ERR(res == PERM_ERR, "usr1 can't create a directory in usr2 directory after given permission")
