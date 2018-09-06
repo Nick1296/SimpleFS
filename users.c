@@ -7,7 +7,6 @@
 //return NULL on error
 FileHandle *load_ids(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
-	User *current_user = wallet->current_user;
 	//we move into the root directory
 	while (dh->directory != NULL) {
 		res = shell_changeDir(dh, "..", wallet);
@@ -37,13 +36,7 @@ FileHandle *load_ids(DirectoryHandle *dh, Wallet *wallet) {
 //given the handle to the id file we load its content on memory
 //returns NULL on error
 Ids *read_ids(FileHandle *id, Wallet *wallet) {
-	ListElement *grp_lst = grpsrc(wallet, NULL, id->fcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
 	int res;
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
 	res = shell_seekFile(id, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -69,13 +62,7 @@ Ids *read_ids(FileHandle *id, Wallet *wallet) {
 
 //given the handle to the id file we save on it the ids in the wallet
 int save_ids(FileHandle *id, Wallet *wallet) {
-	ListElement *grp_lst = grpsrc(wallet, NULL, id->fcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
 	int res;
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
 	res = shell_seekFile(id, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -88,7 +75,7 @@ int save_ids(FileHandle *id, Wallet *wallet) {
 	}
 	
 	//we write the gid to file
-	res += shell_writeFile(id, &(wallet->ids->last_gid), sizeof(int), wallet);
+	res = shell_writeFile(id, &(wallet->ids->last_gid), sizeof(int), wallet);
 	if (res == FAILED || res == PERM_ERR) {
 		return res;
 	}
@@ -99,12 +86,6 @@ int save_ids(FileHandle *id, Wallet *wallet) {
 //returns NULL on error
 FileHandle *load_users(DirectoryHandle *dh, Wallet *wallet) {
 	int res;
-	User *current_user = wallet->current_user;
-	ListElement *grp_lst = grpsrc(wallet, NULL, dh->dcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
 	//we check that the given directory handle is the one of the root directory
 	while (dh->directory != NULL) {
 		res = shell_changeDir(dh, "..", wallet);
@@ -135,12 +116,6 @@ FileHandle *load_users(DirectoryHandle *dh, Wallet *wallet) {
 //given a file handle creates a User list
 ListHead *read_users(FileHandle *users, Wallet *wallet) {
 	int res;
-	ListElement *grp_lst = grpsrc(wallet, NULL, users->fcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to read everything
 	res = shell_seekFile(users, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -211,12 +186,6 @@ int save_users(FileHandle *users, ListHead *data, Wallet *wallet) {
 	}
 	ListElement *lst = data->first;
 	int res;
-	ListElement *grp_lst = grpsrc(wallet, NULL, users->fcb->fcb.permissions.group_uid);
-	Group *grp = NULL;
-	if (grp_lst != NULL) {
-		grp = grp_lst->item;
-	}
-	int current_user = wallet->current_user->uid;
 	//we seek at the beginning of the file to be sure to override everything
 	res = shell_seekFile(users, 0, wallet);
 	if (res == FAILED || res == PERM_ERR) {
@@ -239,7 +208,7 @@ int save_users(FileHandle *users, ListHead *data, Wallet *wallet) {
 
 // adds a new user
 //new users are always added in the tail of the list
-int useradd(char *username, Wallet *wallet) {
+int useradd(char *username, DirectoryHandle *dh, Wallet *wallet) {
 	//check if the given string respects the memory limit
 	if (strlen(username) > NAME_LENGTH || username == NULL) {
 		return FAILED;
@@ -294,20 +263,57 @@ int useradd(char *username, Wallet *wallet) {
 	res = gpasswd(username, username, wallet, ADD);
 	if (res == FAILED || res == PERM_ERR) {
 		//we delete the created user and return  the error
-		userdel(username, wallet);
+		userdel(username, dh, wallet);
 		return res;
 	}
 	//now we update the Ids structure
 	wallet->ids->last_uid++;
 	res = save_ids(wallet->ids_file, wallet);
 	if (res == FAILED || res == PERM_ERR) {
-		userdel(username, wallet);
+		userdel(username, dh, wallet);
+		return res;
 	}
-	return SUCCESS;
+	//now we need to create the user folder
+	//we get a new directory handle
+	DirectoryHandle *dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
+	//we try to move into the directory "home"
+	res = shell_changeDir(dh2, "home", wallet);
+	if (res == FAILED) {
+		//if the directory does not exist we create it
+		res = shell_mkDir(dh2, "home", wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			userdel(username, dh, wallet);
+			return res;
+		}
+		res = shell_changeDir(dh2, "home", wallet);
+		if (res == FAILED || res == PERM_ERR) {
+			userdel(username, dh, wallet);
+			return res;
+		}
+	}
+	//we create the user directory
+	res = shell_mkDir(dh2, username, wallet);
+	if (res == FAILED || res == PERM_ERR) {
+		userdel(username, dh, wallet);
+		return res;
+	}
+	//we make it owned by the created user
+	res = shell_chown(dh2, username, username, wallet);
+	if (res == FAILED || res == PERM_ERR) {
+		userdel(username, dh, wallet);
+		shell_removeFile(dh2, username, wallet);
+	}
+	//we deallocate the obtained handle
+	//TODO: check these free
+	free(dh2->current_block);
+	free(dh2->dcb);
+	free(dh2->directory);
+	free(dh2);
+	return res;
 }
 
 // deletes a user
-int userdel(char *username, Wallet *wallet) {
+int userdel(char *username, DirectoryHandle *dh, Wallet *wallet) {
 	//check if the given string respects the memory limit
 	if (strlen(username) > NAME_LENGTH || username == NULL) {
 		return FAILED;
@@ -376,6 +382,25 @@ int userdel(char *username, Wallet *wallet) {
 			wallet->user_list = read_users(wallet->user_file, wallet);
 			CHECK_ERR(wallet->user_list == NULL, "users subsystem compromised!")
 		}
+		//now we need to remove the user folder
+		//we get a new directory handle
+		DirectoryHandle *dh2 = fs_init(dh->sfs, dh->sfs->disk, wallet->current_user->uid, wallet->current_user->gid);
+		//we try to move into the directory "home"
+		res = shell_changeDir(dh2, "home", wallet);
+		if (res == PERM_ERR) {
+			return res;
+		}
+		//we remove the user home directory
+		res = shell_removeFile(dh2, username, wallet);
+		if (res == PERM_ERR) {
+			return res;
+		}
+		//we deallocate the obtained handle
+		//TODO: check these free
+		free(dh2->current_block);
+		free(dh2->dcb);
+		free(dh2->directory);
+		free(dh2);
 		return res;
 	} else {
 		//otherwise we return failed
@@ -955,6 +980,11 @@ Wallet *initialize_wallet(DirectoryHandle *dh) {
 			destroy_wallet(wallet);
 			return NULL;
 		}
+	}
+	res = SUCCESS;
+	//we try to go back to the root directory
+	while (dh->directory != NULL && res != FAILED && res != PERM_ERR) {
+		res = shell_changeDir(dh, "..", wallet);
 	}
 	return wallet;
 }

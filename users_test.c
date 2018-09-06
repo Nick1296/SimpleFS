@@ -14,8 +14,8 @@ int main(void) {
 	fs->disk = disk;
 	
 	unsigned root = ROOT;
-	format(fs, root);
-	res = load(fs->disk, fs->filename);
+	formatDisk(fs, root);
+	res = loadDisk(fs->disk, fs->filename);
 	CHECK_ERR(res == FAILED, "can't load the fs");
 	DirectoryHandle *dh = init(fs, disk, root, root);
 	
@@ -26,10 +26,10 @@ int main(void) {
 	//we now add two users
 	char usr1[] = "user1", usr2[] = "user2", usr3[] = "user3";
 	printf("add user1\n");
-	res = useradd(usr1, wallet);
+	res = useradd(usr1, dh, wallet);
 	printf("result:%d\n", res);
 	printf("add user2\n");
-	res = useradd(usr2, wallet);
+	res = useradd(usr2, dh, wallet);
 	printf("result:%d\n", res);
 	printf("add user1 in user2 group\n");
 	res = gpasswd(usr2, usr1, wallet, ADD);
@@ -41,21 +41,21 @@ int main(void) {
 	res = gpasswd(usr1, usr2, wallet, REMOVE);
 	printf("result:%d\n", res);
 	printf("remove user1\n");
-	res = userdel(usr1, wallet);
+	res = userdel(usr1, dh, wallet);
 	printf("result:%d\n", res);
 	printf("remove user2\n");
-	res = userdel(usr2, wallet);
+	res = userdel(usr2, dh, wallet);
 	printf("result:%d\n", res);
 	destroy_wallet(wallet);
 	printf("now we destroy and reload the wallet and perform the same operations\n");
 	wallet = initialize_wallet(dh);
 	printf("add user1\n");
-	res = useradd(usr1, wallet);
+	res = useradd(usr1, dh, wallet);
 	printf("result:%d\n", res);
 	printf("add user3\n");
-	res = useradd(usr3, wallet);
+	res = useradd(usr3, dh, wallet);
 	printf("result:%d\n", res);
-	printf("add user1 in user2 group\n");
+	printf("add user1 in user3 group\n");
 	res = gpasswd(usr3, usr1, wallet, ADD);
 	printf("result:%d\n", res);
 	printf("add user3 in user1 group\n");
@@ -65,10 +65,10 @@ int main(void) {
 	res = gpasswd(usr1, usr3, wallet, REMOVE);
 	printf("result:%d\n", res);
 	printf("remove user1\n");
-	res = userdel(usr1, wallet);
+	res = userdel(usr1, dh, wallet);
 	printf("result:%d\n", res);
 	printf("remove user3\n");
-	res = userdel(usr3, wallet);
+	res = userdel(usr3, dh, wallet);
 	printf("result:%d\n", res);
 	destroy_wallet(wallet);
 }

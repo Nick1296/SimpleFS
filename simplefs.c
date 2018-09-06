@@ -433,24 +433,24 @@ int SimpleFS_remove(DirectoryHandle *d, const char *filename) {
 		if (sRes->last_visited_dir_block == NULL) {
 			//if the last visited dirblock is NULL we are in the FDB
 			// we get the last element in the dir block and move it in place of the removed directory
-			for (i = sRes->pos_in_block; i < FDB_max_elements && handle->dcb->file_blocks[i] != MISSING; i++);
+			for (i = sRes->pos_in_block; i < FDB_max_elements && d->dcb->file_blocks[i] != MISSING; i++);
 			if (i - 1 > sRes->pos_in_block) {
-				handle->dcb->file_blocks[sRes->pos_in_block] = handle->dcb->file_blocks[i - 1];
-				handle->dcb->file_blocks[i - 1] = MISSING;
+				d->dcb->file_blocks[sRes->pos_in_block] = d->dcb->file_blocks[i - 1];
+				d->dcb->file_blocks[i - 1] = MISSING;
 			} else {
-				handle->dcb->file_blocks[sRes->pos_in_block] = MISSING;
+				d->dcb->file_blocks[sRes->pos_in_block] = MISSING;
 			}
 		} else {
 			// we need to get in the last directory block to move the last entry in that block in place of the removed
 			// directory
-			memcpy(handle->current_block, &(sRes->last_visited_dir_block->header), sizeof(BlockHeader));
+			memcpy(d->current_block, &(sRes->last_visited_dir_block->header), sizeof(BlockHeader));
 			DirectoryBlock *db = (DirectoryBlock *) malloc(sizeof(DirectoryBlock));
-			res = DiskDriver_readBlock(handle->sfs->disk, db, sRes->dir_block_in_disk);
+			res = DiskDriver_readBlock(d->sfs->disk, db, sRes->dir_block_in_disk);
 			CHECK_ERR(res == FAILED, "can't read the last visited block")
-			while (handle->current_block->next_block != MISSING) {
-				res = DiskDriver_readBlock(handle->sfs->disk, db, handle->current_block->next_block);
+			while (d->current_block->next_block != MISSING) {
+				res = DiskDriver_readBlock(d->sfs->disk, db, d->current_block->next_block);
 				CHECK_ERR(res == FAILED, "can't read the db")
-				memcpy(handle->current_block, &(db->header), sizeof(BlockHeader));
+				memcpy(d->current_block, &(db->header), sizeof(BlockHeader));
 			}
 			// we get the last element in the last block
 			for (i = 0; i < Dir_Block_max_elements && db->file_blocks[i] != MISSING; i++);

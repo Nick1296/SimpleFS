@@ -564,7 +564,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "useradd") == 0) {
 			
-			res = useradd(argv[i + 1], wallet);
+			res = useradd(argv[i + 1], dh, wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di useradd\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
@@ -619,10 +619,10 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 	return AGAIN;
 }
 
-int shell_login(Wallet *wallet) {
+int shell_login(Wallet *wallet, DirectoryHandle *dh) {
 	char *ret;
 	int res;
-	//we chekc if we have valid data
+	//we check if we have valid data
 	if (wallet == NULL) {
 		return FAILED;
 	}
@@ -637,7 +637,7 @@ int shell_login(Wallet *wallet) {
 		if (ret == NULL) {
 			return FAILED;
 		}
-		res = useradd(user_buf, wallet);
+		res = useradd(user_buf, dh, wallet);
 	} else {
 		printf("\t\tLogin\n");
 		printf("username:");
@@ -647,6 +647,20 @@ int shell_login(Wallet *wallet) {
 		}
 		res = do_su(user_buf, wallet);
 	}
+	//we move into the user home directory
+	//we go back to the root directory
+	while (dh->directory != NULL && res != FAILED && res != PERM_ERR) {
+		res = shell_changeDir(dh, "..", wallet);
+	}
+	if (res == FAILED || res == PERM_ERR) {
+		return res;
+	}
+	//we go into the user home directory
+	res = shell_changeDir(dh, "home", wallet);
+	if (res == FAILED || res == PERM_ERR) {
+		return res;
+	}
+	res = shell_changeDir(dh, user_buf, wallet);
 	free(user_buf);
 	return res;
 }
@@ -672,7 +686,7 @@ int main(int arg, char **args) {
 	
 	/*after having initialized the wallet we check if we let the user authenticate
 	or we create the first user in case only the root user is present*/
-	res = shell_login(wallet);
+	res = shell_login(wallet, dh);
 	CHECK_ERR(res == FAILED || res == PERM_ERR, "can't login/create user!")
 	
 	//per ottenere i comandi inseriti dall'utente

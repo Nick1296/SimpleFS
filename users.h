@@ -43,10 +43,10 @@ typedef struct _Wallet {
 } Wallet;
 
 // adds a new user
-int useradd(char *username, Wallet *wallet);
+int useradd(char *username, DirectoryHandle *dh, Wallet *wallet);
 
 // deletes a user
-int userdel(char *username, Wallet *wallet);
+int userdel(char *username, DirectoryHandle *dh, Wallet *wallet);
 
 // creates a group
 int groupadd(char *name, Wallet *wallet);

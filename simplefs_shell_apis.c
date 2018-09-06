@@ -24,7 +24,7 @@ it can be called by the root user or by the owner of the file
 this function can takes a DirectoryHandle or a FileHandle
 you can't modify ownership of a file and a directory simultaneously, so one of them MUST be NULL*/
 int shell_chown(DirectoryHandle *d, char *name, char *new_owner_name, Wallet *wallet) {
-	if (d == NULL || name == NULL || strlen(name) < FILENAME_MAX_LENGTH || new_owner_name == NULL ||
+	if (d == NULL || name == NULL || strlen(name) > FILENAME_MAX_LENGTH || new_owner_name == NULL ||
 	    strlen(new_owner_name) > NAME_LENGTH || wallet == NULL) {
 		return FAILED;
 	}
@@ -59,7 +59,7 @@ DirectoryHandle *fs_init(SimpleFS *fs, DiskDriver *disk, int current_user, int u
 //in here we don't use wallet because this function it's called before the wallet can be initialized
 int shell_formatDisk(SimpleFS *fs, int current_user) {
 	if (fs == NULL) {
-		return NULL;
+		return FAILED;
 	}
 	return formatDisk(fs, current_user);
 }
