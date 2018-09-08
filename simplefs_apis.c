@@ -80,6 +80,9 @@ createFile(DirectoryHandle *d, const char *filename, int current_user, int user_
 	//check if the current user has permissions to perform the operation
 	if (check_permissions(WRITE, d->dcb->fcb, current_user, usr_in_grp) == SUCCESS) {
 		f = SimpleFS_createFile(d, filename);
+		if (f == NULL) {
+			return f;
+		}
 		//we set the owner and owner group of the newly created file
 		f->fcb->fcb.permissions.user_uid = current_user;
 		f->fcb->fcb.permissions.group_uid = user_primary_group;

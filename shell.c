@@ -384,6 +384,7 @@ int echo(char *argv[MAX_NUM_TOK + 1], DirectoryHandle *d, int i_init, Wallet *wa
 	int i = i_init;
 	int control = 0;//variabile che se è settata a 1 mi indica che bisogna scrivere su file
 	char *result = malloc(sizeof(char) * MAX_COMMAND_SIZE);
+	memset(result, 0, MAX_COMMAND_SIZE);
 	FileHandle *fh;
 	int b_scritti;
 	
@@ -633,10 +634,12 @@ int shell_login(Wallet *wallet, DirectoryHandle *dh) {
 		//the first user is always root, so in this case we need to create the a user
 		printf("Non è presente nessun utente, crea un utente\n");
 		printf("username:");
-		res = 0;
-		while (res == 0 || res > NAME_LENGTH) {
+		res = FAILED;
+		while (res == FAILED || res > NAME_LENGTH) {
 			printf("username:");
 			res = scanf("%ms", &user_buf);
+			//to get the /n left
+			getchar();
 			if (res <= 0 && errno != 0) {
 				return FAILED;
 			}
@@ -655,10 +658,12 @@ int shell_login(Wallet *wallet, DirectoryHandle *dh) {
 		}
 	} else {
 		printf("\t\tLogin\n");
-		res = 0;
-		while (res == FAILED || res == 0 || res > NAME_LENGTH) {
+		res = FAILED;
+		while (res == FAILED || res > NAME_LENGTH) {
 			printf("username:");
 			res = scanf("%ms", &user_buf);
+			//to get the /n left
+			getchar();
 			if (res <= 0 && errno != 0) {
 				return FAILED;
 			}
