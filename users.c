@@ -1,4 +1,6 @@
 #include "users.h"
+#include "simplefs_shell_apis.h"
+#include "disk_driver.h"
 
 //all the operations must be executed as root user
 

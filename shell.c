@@ -405,8 +405,10 @@ int echo(char *argv[MAX_NUM_TOK + 1], DirectoryHandle *d, int i_init, Wallet *wa
 				}
 			}
 			b_scritti = shell_writeFile(fh, (void *) result, (int) strlen(result), wallet);
-			while (b_scritti == -1 || b_scritti != strlen(result)) {
+			if(b_scritti==FAILED || b_scritti== PERM_ERR) return b_scritti;
+			while (b_scritti != strlen(result)) {
 				b_scritti = shell_writeFile(fh, (void *) result + b_scritti, (int) (strlen(result) - b_scritti), wallet);
+				if(b_scritti==FAILED || b_scritti== PERM_ERR) return b_scritti;
 			}
 			shell_closeFile(fh);
 			//Al completamento con esito positivo, la funzione deve aprire il file e restituire un numero intero non negativo che rappresenta
@@ -441,7 +443,7 @@ int do_su(char *username, Wallet *wallet) {
 
 int
 do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE], int tok_num, Wallet *wallet) {
-	int i = 0, j, res;
+	int i = 0, j, status=FAILED, res;
 	char *argv[MAX_NUM_COMMAND];
 	memset(argv, 0, MAX_NUM_TOK + 1);
 	// Ottengo i comandi con i loro argomenti
@@ -486,11 +488,13 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			       "\t- gpasswd -[ad] [groupname] [username] per aggiungere (-a) o rimuovere (-d) un utente da un gruppo\n\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "quit") == 0) {
+			status=SUCCESS;
 			shell_shutdown(fs, dh, wallet);
 			free(argv[i]);
 			return QUIT;
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "ls") == 0) {
+			status=SUCCESS;
 			char *names;
 			if (argv[i + 1] != NULL && strcmp(argv[i + 1], "-l") == 0) {
 				res = shell_readDir_perms(&names, dh, wallet);
@@ -503,6 +507,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			} else printf("Errore nell'esecuzione di ls\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "cd") == 0) {
+			status=SUCCESS;
 			for (j = i + 1; argv[j] != NULL && strcmp(argv[j], "\0") != 0; j++) {
 				res = shell_changeDir(dh, argv[j], wallet);
 				if (res == FAILED) printf("Errore nell'esecuzione di cd\n");
@@ -511,6 +516,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			i = j;
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "mkdir") == 0) {
+			status=SUCCESS;
 			for (j = i + 1; argv[j] != NULL && strcmp(argv[j], "\0") != 0; j++) {
 				res = shell_mkDir(dh, argv[j], wallet);
 				if (res == FAILED) printf("Errore nell'esecuzione di mkdir\n");
@@ -519,6 +525,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			i = j;
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "rm") == 0) {
+			status=SUCCESS;
 			for (j = i + 1; argv[j] != NULL && strcmp(argv[j], "\0") != 0; j++) {
 				res = shell_removeFile(dh, argv[j], wallet);
 				if (res == FAILED) printf("Errore nell'esecuzione di rm su file/directory: %s\n", argv[j]);
@@ -527,6 +534,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			i = j;
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "touch") == 0) {
+			status=SUCCESS;
 			for (j = i + 1; argv[j] != NULL && strcmp(argv[j], "\0") != 0; j++) {
 				FileHandle *fh = shell_createFile(dh, argv[j], wallet);
 				if (fh == NULL) printf("Errore nell'esecuzione di touch su file: %s\n", argv[j]);
@@ -535,12 +543,15 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			i = j;
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "cat") == 0) {
+			status=SUCCESS;
 			i += do_cat(dh, argv, i + 1, wallet);
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "cp") == 0) {
+			status=SUCCESS;
 			i += do_copy_file(dh, argv, i + 1, wallet);
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "info") == 0) {
+			status=SUCCESS;
 			if (argv[i + 1] != NULL && strcmp(argv[i + 1], "-bmap") == 0) {
 				bitmap_info(fs->disk);
 			} else {
@@ -548,51 +559,55 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			}
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "echo") == 0) {
-			echo(argv, dh, i + 1, wallet);
+			status=SUCCESS;
+			res=echo(argv, dh, i + 1, wallet);
+			if (res == FAILED) printf("Errore nell'esecuzione echo\n");
+			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "chmod") == 0) {
-			
+			status=SUCCESS;			
 			res = shell_chmod(dh, argv[i + 1], atoi(argv[i + 2]), atoi(argv[i + 3]), atoi(argv[i + 4]), wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di chmod\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "chown") == 0) {
-			
+			status=SUCCESS;
 			res = shell_chown(dh, argv[i + 1], argv[i + 2], wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di chown\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "useradd") == 0) {
-			
+			status=SUCCESS;
 			res = useradd(argv[i + 1], dh, wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di useradd\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "userdel") == 0) {
-			
+			status=SUCCESS;
 			res = userdel(argv[i + 1], dh, wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di userdel\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "groupadd") == 0) {
-			
+			status=SUCCESS;
 			res = groupadd(argv[i + 1], wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di groupadd\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "groupdel") == 0) {
-			
+			status=SUCCESS;
 			res = groupdel(argv[i + 1], wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di groupdel\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "su") == 0) {
-			
+			status=SUCCESS;
 			res = do_su(argv[i + 1], wallet);
 			if (res == FAILED) printf("Errore nell'esecuzione di su\n");
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "gpasswd") == 0) {
+			status=SUCCESS;
 			if (strcmp(argv[i + 1], "-a") == 0) {
 				res = gpasswd(argv[i + 2], argv[i + 3], wallet, ADD);
 			} else {
@@ -605,14 +620,15 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			if (res == PERM_ERR) printf("permessi insufficienti\n");
 			if (res == FAILED) printf("Errore nell'esecuzione di gpasswd\n");
 		}
-		
-		
 	}
-	
+	//non è stato eseguito nessun comando
+	if(status==FAILED){
+		printf("comando non trovato\n");
+	}
 	// Libero la memoria dai vari comandi
 	for (i = 0; argv[i] != NULL; i++) if (strcmp(argv[i], "\0") != 0) free(argv[i]);
 	
-	//se è sato usato sudo ripristianiamo l'utente attuale
+	//se è stato usato sudo ripristiniamo l'utente attuale
 	if (user != NULL) {
 		wallet->current_user = user;
 	}
