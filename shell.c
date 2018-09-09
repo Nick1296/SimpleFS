@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include "simplefs_shell_apis.h"
 
 #define MAX_COMMAND_SIZE 1024
@@ -151,10 +150,7 @@ void make_argv(char *argv[MAX_NUM_COMMAND],
 		now = strcat(now, " ");
 		if (now[0] == ' ') now = now + 1;
 		if (strchr(now, '\n') != NULL) *(strchr(now, '\n')) = ' ';
-		// Ogni '/' che trovo quello mi indica
-		// l'inizio di un nuovo comando
-		if (strchr(now, '/') != NULL) {
-			app = strchr(now, '/') + 1;
+		app = now;
 			suc = strchr(app, ' ');
 			while (suc != NULL) {
 				len = (int) (suc - app + 1);
@@ -168,7 +164,6 @@ void make_argv(char *argv[MAX_NUM_COMMAND],
 			}
 			argv[j] = app;
 			j++;
-		}
 	}
 	argv[j] = NULL;
 }
@@ -467,28 +462,28 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 		if (argv[i] != NULL && strcmp(argv[i], "help") == 0) {
 			printf("\n[progettoSO_shell] HELP\n"
 			       "I comandi che puoi dare in questa semplice shell sono:\n"
-			       "\t- /help per mostrare questo messaggio\n"
-			       "\t- /ls per mostrare l'elenco dei file contenuti nella working directory\n"
-			       "\t- /info per avere informazioni sul disco\n"
-			       "\t- /info -bmap per avere informazioni sulla bitmap del disco\n"
-			       "\t- /touch per creare un file vuoto\n"
-			       "\t- /echo per scrivere un messaggio su un file\n"
-			       "\t- /cat per concatenare i file e scriverli sullo schermo\n"
-			       "\t- /mkdir per creare una nuova directory\n"
-			       "\t- /cd per cambiare la directory di lavoro\n"
-			       "\t- /rm per rimuovere un file o una directory,"
+			       "\t- help per mostrare questo messaggio\n"
+			       "\t- ls per mostrare l'elenco dei file contenuti nella working directory\n"
+			       "\t- info per avere informazioni sul disco\n"
+			       "\t- info -bmap per avere informazioni sulla bitmap del disco\n"
+			       "\t- touch [nome file] per creare un file vuoto\n"
+			       "\t- echo [contenuto] > [file] per scrivere un messaggio su un file (sovrascive il contenuto)\n"
+			       "\t- cat [files] per concatenare i file e scriverli sullo schermo\n"
+			       "\t- mkdir [directory] per creare una nuova directory\n"
+			       "\t- cd [directory] per cambiare la directory di lavoro\n"
+			       "\t- rm [file/directory] per rimuovere un file o una directory,"
 			       " rimuove una directory in maniera ricorsiva se questa non e' vuota\n"
-			       "\t- /cp per copiare un file da o verso SimpleFs\n"
-			       "\t usando /sudo puoi eseguire i comandi come utente root\n"
-			       "\t- /chmod [nome elemento] [utente] [gruppo] [altri] per modificare i permessi di un elemento"
+			       "\t- cp per copiare un file da o verso SimpleFs\n"
+			       "\t usando sudo puoi eseguire i comandi come utente root\n"
+			       "\t- chmod [nome elemento] [utente] [gruppo] [altri] per modificare i permessi di un elemento"
 			       "usando la notazione ottale\n"
-			       "\t- /chown [nome elemento] [nome nuovo possessore] per cambiare il possessore di un elemento\n"
-			       "\t- /useradd [username] per aggiungere un utente\n"
-			       "\t- /userdel [usename] per eliminare un utente\n"
-			       "\t- /groupadd [groupname] per aggiungere un gruppo\n"
-			       "\t- /groupdel [groupname] per eliminare un gruppo\n"
-			       "\t- /su [username] per cambiare utente\n"
-			       "\t- /gpasswd -[ad] [groupname] [username] per aggiungere (-a) o rimuovere (-d) un utente da un gruppo\n\n");
+			       "\t- chown [nome elemento] [nome nuovo possessore] per cambiare il possessore di un elemento\n"
+			       "\t- useradd [username] per aggiungere un utente\n"
+			       "\t- userdel [usename] per eliminare un utente\n"
+			       "\t- groupadd [groupname] per aggiungere un gruppo\n"
+			       "\t- groupdel [groupname] per eliminare un gruppo\n"
+			       "\t- su [username] per cambiare utente\n"
+			       "\t- gpasswd -[ad] [groupname] [username] per aggiungere (-a) o rimuovere (-d) un utente da un gruppo\n\n");
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "quit") == 0) {
 			shell_shutdown(fs, dh, wallet);
@@ -497,7 +492,11 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 		}
 		if (argv[i] != NULL && strcmp(argv[i], "ls") == 0) {
 			char *names;
-			res = shell_readDir(&names, dh, wallet);
+			if (argv[i + 1] != NULL && strcmp(argv[i + 1], "-l") == 0) {
+				res = shell_readDir_perms(&names, dh, wallet);
+			} else {
+				res = shell_readDir(&names, dh, wallet);
+			}
 			if (res != FAILED) {
 				printf("\n%s\n", names);
 				free(names);
@@ -633,7 +632,6 @@ int shell_login(Wallet *wallet, DirectoryHandle *dh) {
 	if (wallet->user_list->first->next == NULL) {
 		//the first user is always root, so in this case we need to create the a user
 		printf("Non è presente nessun utente, crea un utente\n");
-		printf("username:");
 		res = FAILED;
 		while (res == FAILED || res > NAME_LENGTH) {
 			printf("username:");
@@ -731,8 +729,6 @@ int main(int arg, char **args) {
 	char tok_buf[MAX_NUM_TOK][MAX_COMMAND_SIZE];
 	int tok_num = 0;
 	char *ret;
-	
-	printf("\n\tI comandi di questa shell inziano per '/', esempio /ls, /cd, /mkdir, ecc.\n\n");
 	
 	while (control) {
 		printf("[%s@SimpleFS_shell:%s]>", wallet->current_user->account, dh->dcb->fcb.name);

@@ -1,5 +1,4 @@
 #include "users.h"
-#include "simplefs_shell_apis.h"
 
 //all the operations must be executed as root user
 
@@ -1019,4 +1018,101 @@ Wallet *initialize_wallet(DirectoryHandle *dh) {
 		return NULL;
 	}
 	return wallet;
+}
+
+// reads in the (preallocated) blocks array, the name of all files in a directory showing permissions
+int shell_readDir_perms(char **names, DirectoryHandle *d, Wallet *wallet) {
+
+	char newLine[] = "\n   ";
+	char str[] = "directory empty\n";
+
+	int FDB_max_elements = (BLOCK_SIZE - sizeof(BlockHeader) - sizeof(FileControlBlock) - sizeof(int)) / sizeof(int);
+	int Dir_Block_max_elements = (BLOCK_SIZE - sizeof(BlockHeader)) / sizeof(int);
+	int dir_entries = d->dcb->num_entries;
+	int i, res, pos = 0;
+
+	size_t dim_names = (dir_entries + 1) * (((NAME_LENGTH * 2) + 50 + FILENAME_MAX_LENGTH) * sizeof(char));
+	*names = (char *) malloc(dim_names);
+	memset(*names, 0, dim_names);
+
+	strncpy(*names, d->dcb->fcb.name, strlen(d->dcb->fcb.name));
+	strcat(*names, newLine);
+
+	if (dim_names == 1 * ((FILENAME_MAX_LENGTH + 50) * sizeof(char))) {
+		strcat(*names, str);
+		return SUCCESS;
+	}
+	FirstDirectoryBlock *file = (FirstDirectoryBlock *) malloc(sizeof(FirstDirectoryBlock));
+	DirectoryBlock *db = (DirectoryBlock *) malloc(sizeof(DirectoryBlock));
+
+	// We search for all the files in the current directory block
+	for (i = 0; i < dir_entries; i++) {
+		// We get the file
+		memset(file, 0, sizeof(FirstDirectoryBlock));
+		if (i < FDB_max_elements) {
+			res = DiskDriver_readBlock(d->sfs->disk, file, d->dcb->file_blocks[i]);
+			CHECK_ERR(res == FAILED, "Error read dir block in simplefs_readDir");
+		} else {
+			// File contenuto nei DB della directory genitore
+			int logblock = ((i - FDB_max_elements) / Dir_Block_max_elements) + 1;
+			int j, block = d->dcb->header.next_block;
+			if (pos != logblock) memset(db, 0, sizeof(DirectoryBlock));
+			for (j = 0; j < logblock && pos != logblock; j++) {
+				res = DiskDriver_readBlock(d->sfs->disk, db, block);
+				CHECK_ERR(res == FAILED, "Error on read of DirectoryBlock in simpleFS_readDir");
+				block = db->header.next_block;
+				pos = j + 1;
+			}
+			res = DiskDriver_readBlock(d->sfs->disk, file, db->file_blocks[(i - FDB_max_elements) % Dir_Block_max_elements]);
+			CHECK_ERR(res == FAILED, "Error read dir block in simplefs_readDir");
+		}
+
+		// Copy data of files of current directory
+		// we print the - if it's a file or d if it's a directory
+		if (file->fcb.is_dir == DIRECTORY) sprintf((*names) + strlen(*names), "d");
+		else sprintf((*names) + strlen(*names), "-");
+		//we print the permissions on the file
+		int j, perms[3] = {file->fcb.permissions.user, file->fcb.permissions.group, file->fcb.permissions.others};
+		for (j = 0; j < 3; j++) {
+			if (perms[j] >= 4) {
+				sprintf((*names) + strlen(*names), "r");
+			} else {
+				sprintf((*names) + strlen(*names), "-");
+			}
+			if (perms[j] >= 6 || perms[j] == 2) {
+				sprintf((*names) + strlen(*names), "w");
+			} else {
+				sprintf((*names) + strlen(*names), "-");
+			}
+			if (perms[j] == 7 || perms[j] == 3 || perms[j] == 1) {
+				sprintf((*names) + strlen(*names), "x");
+			} else {
+				sprintf((*names) + strlen(*names), "-");
+			}
+		}
+		ListElement *lst = NULL;
+		User *owner = NULL;
+		Group *group = NULL;
+		lst = usrsrc(wallet, NULL, file->fcb.permissions.user_uid);
+		if (lst != NULL) {
+			owner = lst->item;
+		}
+		lst = grpsrc(wallet, NULL, file->fcb.permissions.group_uid);
+		if (lst != NULL) {
+			group = lst->item;
+		}
+		if (owner == NULL || group == NULL) {
+			return FAILED;
+		}
+		sprintf((*names) + strlen(*names), " %s %s ", owner->account, group->group_name);
+		sprintf((*names) + strlen(*names), "%d", file->fcb.size_in_bytes);
+		sprintf((*names) + strlen(*names), "%c", ' ');
+		strncat((*names) + strlen(*names), file->fcb.name, strlen(file->fcb.name));
+		strcat(*names, newLine);
+	}
+
+	memset(*names + strlen(*names), 0, 1);
+	free(file);
+	free(db);
+	return SUCCESS;
 }

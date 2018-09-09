@@ -101,3 +101,6 @@ Ids *read_ids(FileHandle *id, Wallet *wallet);
 
 //given the handle to the id file we save on it the ids in the wallet
 int save_ids(FileHandle *id, Wallet *wallet);
+
+// reads in the (preallocated) blocks array, the name of all files in a directory showing permissions
+int shell_readDir_perms(char **names, DirectoryHandle *d, Wallet *wallet);
