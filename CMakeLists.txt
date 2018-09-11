@@ -15,4 +15,4 @@ set_target_properties(SimpleFS_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_
 set_target_properties(SimpleFS_apis_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
 set_target_properties(SimpleFS_users_test PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/test)
 # we set the debug compilation flags to be used
-set(CMAKE_C_FLAGS_DEBUG "-Wall -ggdb -std=gnu99 -Wstrict-prototypes -fsanitize=address")
+set(CMAKE_C_FLAGS_DEBUG "-Wall -ggdb -std=gnu99 -Wstrict-prototypes")
