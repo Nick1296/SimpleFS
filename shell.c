@@ -414,6 +414,11 @@ int echo(char *argv[MAX_NUM_TOK + 1], DirectoryHandle *d, int i_init, Wallet *wa
 				if (res == FAILED || res == PERM_ERR) {
 					return res;
 				}
+			} else {
+				res = shell_seekFile(fh, 0, wallet);
+				if (res == FAILED || res == PERM_ERR) {
+					return res;
+				}
 			}
 			b_scritti = shell_writeFile(fh, (void *) result, (int) strlen(result), wallet);
 			if (b_scritti == FAILED || b_scritti == PERM_ERR) return b_scritti;
