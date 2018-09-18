@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <inttypes.h>
 #include <sys/stat.h>
@@ -29,6 +29,17 @@
 #define FILE 0
 #define FILENAME_MAX_LENGTH 128
 #define PERM_ERR (-2)
+// root uid
 #define ROOT ((unsigned) 0)
 #define GROUP_SIZE 1024
+// uasername length
 #define NAME_LENGTH 128
+// gpasswd operation type
+#define ADD 1
+#define REMOVE 0
+// empty group entry
+#define EMPTY (-1)
+// defining permissions number
+#define READ 4
+#define WRITE 2
+#define EXECUTE 1

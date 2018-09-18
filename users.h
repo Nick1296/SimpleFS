@@ -1,14 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include "common.h"
 #include "simplefs_structures.h"
 #include "list.h"
-
-//macros for gpasswd operation type
-#define ADD 1
-#define REMOVE 0
-//macro to define and empty group entry
-#define EMPTY (-1)
 
 //all the operation must be executed as root user
 

@@ -1,12 +1,8 @@
-#pragma once
+﻿#pragma once
 //macros used to identify the permission octal values
 #include "simplefs_structures.h"
 #include "common.h"
 #include "disk_driver_structures.h"
-
-#define READ 4
-#define WRITE 2
-#define EXECUTE 1
 
 
 /* setting the permissions on a file/directory according to the values of each set

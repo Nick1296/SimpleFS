@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "bitmap.h"
 #include "disk_driver.h"
@@ -58,5 +58,3 @@ int SimpleFS_mkDir(DirectoryHandle *d, const char *dirname);
 // returns -1 on failure 0 on success
 // if a directory, it removes recursively all contained files
 int SimpleFS_remove(DirectoryHandle *d, const char *filename);
-
-

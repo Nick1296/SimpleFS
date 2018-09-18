@@ -490,7 +490,7 @@ do_cmd(SimpleFS *fs, DirectoryHandle *dh, char tok_buf[MAX_NUM_TOK][MAX_COMMAND_
 			       "\t- info per avere informazioni sul disco\n"
 			       "\t- info -bmap per avere informazioni sulla bitmap del disco\n"
 			       "\t- touch [nome file] per creare un file vuoto\n"
-			       "\t- echo [-a] [contenuto] > [file] per scrivere un messaggio su un file (sovrascive il contenuto se"
+			       "\t- echo [-a] [contenuto] > [file] per scrivere un messaggio su un file (sovrascrive il contenuto se"
 			       "non viene usata l'opzione -a)\n"
 			       "\t- cat [files] per concatenare i file e scriverli sullo schermo\n"
 			       "\t- mkdir [directory] per creare una nuova directory\n"
